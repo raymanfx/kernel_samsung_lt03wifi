@@ -323,9 +323,22 @@ STATIC mali_bool kbase_pm_transition_core_type(kbase_device *kbdev, kbase_pm_cor
 	powerup &= ~ready;
 	powerdown &= ready;
 
-	/* Don't transition any cores that are already transitioning */
-	powerup &= ~trans;
+	/* Don't transition any cores that are already transitioning, except for
+	 * Mali cores that support the following case:
+	 *
+	 * If the SHADER_PWRON or TILER_PWRON registers are written to turn on
+	 * a core that is currently transitioning to power off, then this is 
+	 * remembered and the shader core is automatically powered up again once
+	 * the original transition completes. Once the automatic power on is
+	 * complete any job scheduled on the shader core should start.
+	 */
 	powerdown &= ~trans;
+
+	if (kbase_hw_has_feature(kbdev, BASE_HW_FEATURE_PWRON_DURING_PWROFF_TRANS))
+		if (KBASE_PM_CORE_SHADER == type || KBASE_PM_CORE_TILER == type)
+			trans = powering_on_trans; /* for exception cases, only mask off cores in power on transitions */
+
+	powerup &= ~trans;
 
 	/* Perform transitions if any */
 	kbase_pm_invoke(kbdev, type, powerup, ACTION_PWRON);
@@ -722,15 +735,19 @@ static void kbase_pm_hw_issues(kbase_device *kbdev)
 
 	/* Needed due to MIDBASE-1494: LS_PAUSEBUFFER_DISABLE. See PRLAM-8443. */
 	if (kbase_hw_has_issue(kbdev, BASE_HW_ISSUE_8443))
-		value |= (1 << 16);
+		value |= SC_LS_PAUSEBUFFER_DISABLE;
 
 	/* Needed due to MIDBASE-2054: SDC_DISABLE_OQ_DISCARD. See PRLAM-10327. */
 	if (kbase_hw_has_issue(kbdev, BASE_HW_ISSUE_10327))
-		value |= (1 << 6);
+		value |= SC_SDC_DISABLE_OQ_DISCARD;
 
 	/* Enable alternative hardware counter selection if configured. */
-	if( kbasep_get_config_value(kbdev, kbdev->config_attributes, KBASE_CONFIG_ATTR_ALTERNATIVE_HWC) )
-		value |= (1 << 3);
+	if (kbasep_get_config_value(kbdev, kbdev->config_attributes, KBASE_CONFIG_ATTR_ALTERNATIVE_HWC))
+		value |= SC_ALT_COUNTERS;
+
+	/* Use software control of forward pixel kill when needed. See SKRYMIR-2189. */
+	if (kbase_hw_has_issue(kbdev, BASE_HW_ISSUE_T76X_2121))
+		value |= SC_OVERRIDE_FWD_PIXEL_KILL;
 
 	if (value != 0)
 		kbase_reg_write(kbdev, GPU_CONTROL_REG(SHADER_CONFIG), value, NULL);

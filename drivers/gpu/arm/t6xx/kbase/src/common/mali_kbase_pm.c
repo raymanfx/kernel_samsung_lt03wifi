@@ -337,6 +337,7 @@ void kbase_pm_halt(kbase_device *kbdev)
 	KBASE_DEBUG_ASSERT(kbdev != NULL);
 
 	mutex_lock(&kbdev->pm.lock);
+	kbase_pm_cancel_deferred_poweroff(kbdev);
 	kbase_pm_do_poweroff(kbdev);
 	mutex_unlock(&kbdev->pm.lock);
 }
@@ -399,6 +400,7 @@ void kbase_pm_suspend(struct kbase_device *kbdev)
 	 * the PM active count reaches zero (otherwise, we risk turning it off
 	 * prematurely) */
 	mutex_lock(&kbdev->pm.lock);
+	kbase_pm_cancel_deferred_poweroff(kbdev);
 	kbase_pm_do_poweroff(kbdev);
 	mutex_unlock(&kbdev->pm.lock);
 }

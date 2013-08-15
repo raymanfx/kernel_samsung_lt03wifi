@@ -44,7 +44,7 @@
 
 #include "mali_kbase_gpuprops_types.h"
 
-#define BASE_UK_VERSION_MAJOR 3
+#define BASE_UK_VERSION_MAJOR 4
 #define BASE_UK_VERSION_MINOR 0
 
 typedef struct kbase_uk_tmem_alloc {
