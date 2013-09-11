@@ -36,7 +36,8 @@ struct exynos_context {
 	int utilisation;
 	u32 time_busy;
 	u32 time_idle;
-#endif /*CONFIG_MALI_T6XX_DEBUG_SYS*/
+	bool dvfs_enabled;
+#endif
 };
 
 /* All things that are needed for the Linux port. */
