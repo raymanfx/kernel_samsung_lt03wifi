@@ -825,4 +825,8 @@
 
 #define EXYNOS5420_ISP_ARM_OPTION			EXYNOS_PMUREG(0x2488)
 
+/* Exynos 5420 MCPM */
+#define S5P_PMU_SPARE3                      S5P_PMUREG(0x090C)
+#define EXYNOS5420_SWRESET_KFC_SEL          0x3
+
 #endif /* __ASM_ARCH_REGS_PMU_H */

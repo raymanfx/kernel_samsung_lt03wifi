@@ -1462,6 +1462,14 @@ config SEC_DEBUG_AUXILIARY_LOG
 	  need to concern cache flush status for analyzing sudden
 	  system hang issue.
 
+config EXYNOS5420_MCPM
+	bool "Exynos5420 Multi-Cluster PM support"
+	depends on MCPM && SOC_EXYNOS5420
+	select ARM_CCI
+	help
+	  This is needed to provide CPU and cluster power management
+	  on Exynos5420 implementing big.LITTLE.
+
 config SEC_DEBUG_FUPLOAD_DUMP_MORE
 	bool "Dump more information at forced upload"
 	default n
