@@ -27,6 +27,7 @@
 #include <asm/hardware/cache-l2x0.h>
 #include <asm/smp_scu.h>
 #include <asm/cputype.h>
+#include <asm/mcpm.h>
 
 #include <plat/cpu.h>
 #include <plat/pm.h>
@@ -175,6 +176,10 @@ static int exynos_cpu_suspend(unsigned long arg)
 	unsigned int cluster_id = (read_mpidr() >> 8) & 0xf;
 	unsigned int i, tmp, cpu_offset = ((cluster_id == 0) ? 0 : 4);
 	int value = 0, loops = 0;
+    /* MCPM works with HW CPU identifiers */
+    unsigned int mpidr = read_cpuid_mpidr();
+    unsigned int cluster = MPIDR_AFFINITY_LEVEL(mpidr, 1);
+    unsigned int cpu = MPIDR_AFFINITY_LEVEL(mpidr, 0);
 
 #ifdef CONFIG_SEC_GPIO_DVS
 	/************************ Caution !!! ****************************/
@@ -188,8 +193,6 @@ static int exynos_cpu_suspend(unsigned long arg)
 #ifdef CONFIG_CACHE_L2X0
 	outer_flush_all();
 #endif
-	/* flush cache back to ram */
-	flush_cache_all();
 
 	if (soc_is_exynos5410())
 		exynos_lpi_mask_ctrl(true);
@@ -223,8 +226,21 @@ static int exynos_cpu_suspend(unsigned long arg)
 #ifdef CONFIG_ARM_TRUSTZONE
 	exynos_smc(SMC_CMD_SLEEP, 0, 0, 0);
 #else
-	/* issue the standby signal into the pm unit. */
-	cpu_do_idle();
+    if (IS_ENABLED(CONFIG_EXYNOS5420_MCPM)) {
+        mcpm_set_entry_vector(cpu, cluster, exynos_cpu_resume);
+
+        /*
+         * Residency value passed to mcpm_cpu_suspend back-end
+         * has to be given clear semantics. Set to 0 as a
+         * temporary value.
+         */
+        mcpm_cpu_suspend(0);
+    }
+    
+    pr_info("Failed to suspend the system\n");
+
+    /* return value != 0 means failure */
+    return 1;
 #endif
 	pr_info("sleep resumed to originator?");
 
@@ -594,6 +610,12 @@ static int exynos_pm_suspend(void)
 	return 0;
 }
 
+static void exynos_prepare_pm_resume(void)
+{
+    if (IS_ENABLED(CONFIG_EXYNOS5420_MCPM))
+        WARN_ON(mcpm_cpu_powered_up());
+}
+
 static void exynos_pm_resume(void)
 {
 	unsigned long tmp;
@@ -603,6 +625,9 @@ static void exynos_pm_resume(void)
 #ifdef CONFIG_EXYNOS5_CLUSTER_POWER_CONTROL
 	unsigned int cluster_id = !((read_mpidr() >> 8) & 0xf);
 #endif
+    
+    /* call this during early resume */
+    exynos_prepare_pm_resume();
 
 	if (soc_is_exynos5410() || soc_is_exynos5420())
 		__raw_writel(EXYNOS5410_USE_STANDBY_WFI_ALL,
@@ -749,6 +774,12 @@ early_wakeup:
 	exynos_show_wakeup_reason();
 
 	if (soc_is_exynos5420()) {
+        /* Restore the CPU0 low power state register */
+        tmp = __raw_readl(pmu_base_addr +
+                EXYNOS5_ARM_CORE0_SYS_PWR_REG);
+        pmu_raw_writel(tmp | S5P_CORE_LOCAL_PWR_EN,
+                EXYNOS5_ARM_CORE0_SYS_PWR_REG);
+
 		tmp = __raw_readl(EXYNOS5420_SFR_AXI_CGDIS1_REG);
 		tmp &= ~(EXYNOS5420_UFS | EXYNOS5420_ACE_KFC | EXYNOS5420_ACE_EAGLE);
 		__raw_writel(tmp, EXYNOS5420_SFR_AXI_CGDIS1_REG);
@@ -771,6 +802,7 @@ early_wakeup:
 static struct syscore_ops exynos_pm_syscore_ops = {
 	.suspend	= exynos_pm_suspend,
 	.resume		= exynos_pm_resume,
+    .resume_prepare = exynos_prepare_pm_resume,
 };
 
 static __init int exynos_pm_syscore_init(void)
