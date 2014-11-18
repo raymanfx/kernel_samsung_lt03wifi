@@ -28,6 +28,7 @@
 #include "logger.h"
 
 #include <asm/ioctls.h>
+#include <mach/sec_debug.h>
 
 /*
  * struct logger_log - represents a specific log, such as 'main' or 'radio'
@@ -433,6 +434,23 @@ static ssize_t do_write_log_from_user(struct logger_log *log,
 			 */
 			return -EFAULT;
 
+	/* print as kernel log if the log string starts with "!@" */
+	if (count >= 2) {
+		if (log->buffer[log->w_off] == '!'
+		    && log->buffer[logger_offset(log, log->w_off + 1)] == '@') {
+			char tmp[256];
+			int i;
+			for (i = 0; i < min(count, sizeof(tmp) - 1); i++)
+				tmp[i] =
+				    log->buffer[logger_offset \
+						(log, log->w_off + i)];
+			tmp[i] = '\0';
+			printk(KERN_INFO"%s\n", tmp);
+#ifdef CONFIG_SEC_DEBUG_TSP_LOG
+			sec_debug_tsp_log("%s\n", tmp);
+#endif
+		}
+	}
 	log->w_off = logger_offset(log, log->w_off + count);
 
 	return count;
@@ -561,12 +579,14 @@ static int logger_release(struct inode *ignored, struct file *file)
 	if (file->f_mode & FMODE_READ) {
 		struct logger_reader *reader = file->private_data;
 		struct logger_log *log = reader->log;
-
+		unsigned long start = jiffies;
 		mutex_lock(&log->mutex);
 		list_del(&reader->list);
 		mutex_unlock(&log->mutex);
 
 		kfree(reader);
+		pr_info("%s: took %d msec\n", __func__,
+			jiffies_to_msecs(jiffies - start));
 	}
 
 	return 0;
@@ -733,10 +753,11 @@ static struct logger_log VAR = { \
 	.size = SIZE, \
 };
 
-DEFINE_LOGGER_DEVICE(log_main, LOGGER_LOG_MAIN, 256*1024)
+DEFINE_LOGGER_DEVICE(log_main, LOGGER_LOG_MAIN, 2048*1024)
 DEFINE_LOGGER_DEVICE(log_events, LOGGER_LOG_EVENTS, 256*1024)
-DEFINE_LOGGER_DEVICE(log_radio, LOGGER_LOG_RADIO, 256*1024)
+DEFINE_LOGGER_DEVICE(log_radio, LOGGER_LOG_RADIO, 2048*1024)
 DEFINE_LOGGER_DEVICE(log_system, LOGGER_LOG_SYSTEM, 256*1024)
+DEFINE_LOGGER_DEVICE(log_sf, LOGGER_LOG_SF, 256*1024)
 
 static struct logger_log *get_log_from_minor(int minor)
 {
@@ -748,6 +769,8 @@ static struct logger_log *get_log_from_minor(int minor)
 		return &log_radio;
 	if (log_system.misc.minor == minor)
 		return &log_system;
+	if (log_sf.misc.minor == minor)
+		return &log_sf;
 	return NULL;
 }
 
@@ -768,6 +791,29 @@ static int __init init_log(struct logger_log *log)
 	return 0;
 }
 
+#if (defined CONFIG_SEC_DEBUG && defined CONFIG_SEC_DEBUG_SUBSYS)
+int sec_debug_subsys_set_logger_info(
+	struct sec_debug_subsys_logger_log_info *log_info)
+{
+	log_info->stinfo.buffer_offset = offsetof(struct logger_log, buffer);
+	log_info->stinfo.w_off_offset = offsetof(struct logger_log, w_off);
+	log_info->stinfo.head_offset = offsetof(struct logger_log, head);
+	log_info->stinfo.size_offset = offsetof(struct logger_log, size);
+	log_info->stinfo.size_t_typesize = sizeof(size_t);
+	
+	log_info->main.log_paddr = virt_to_phys(&log_main);
+	log_info->main.buffer_paddr = virt_to_phys(log_main.buffer);
+	log_info->system.log_paddr = virt_to_phys(&log_system);
+	log_info->system.buffer_paddr = virt_to_phys(log_system.buffer);
+	log_info->events.log_paddr = virt_to_phys(&log_events);
+	log_info->events.buffer_paddr = virt_to_phys(log_events.buffer);
+	log_info->radio.log_paddr = virt_to_phys(&log_radio);
+	log_info->radio.buffer_paddr = virt_to_phys(log_radio.buffer);
+
+	return 0;
+}
+#endif
+
 static int __init logger_init(void)
 {
 	int ret;
@@ -787,7 +833,13 @@ static int __init logger_init(void)
 	ret = init_log(&log_system);
 	if (unlikely(ret))
 		goto out;
-
+#if !defined(CONFIG_SAMSUNG_PRODUCT_SHIP)
+	ret = init_log(&log_sf);
+	if (unlikely(ret))
+		goto out;
+#endif
+	sec_getlog_supply_loggerinfo(_buf_log_main, _buf_log_radio,
+				     _buf_log_events, _buf_log_system);
 out:
 	return ret;
 }

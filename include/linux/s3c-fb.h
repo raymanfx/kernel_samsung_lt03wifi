@@ -45,7 +45,8 @@ enum s3c_fb_pixel_format {
 	S3C_FB_PIXEL_FORMAT_RGBA_5551 = 2,
 	S3C_FB_PIXEL_FORMAT_RGB_565 = 3,
 	S3C_FB_PIXEL_FORMAT_BGRA_8888 = 4,
-	S3C_FB_PIXEL_FORMAT_MAX = 5,
+	S3C_FB_PIXEL_FORMAT_BGRX_8888 = 5,
+	S3C_FB_PIXEL_FORMAT_MAX = 6,
 };
 
 enum s3c_fb_blending {
@@ -71,6 +72,7 @@ struct s3c_fb_win_config {
 			enum s3c_fb_pixel_format	format;
 			enum s3c_fb_blending		blending;
 			int				fence_fd;
+			int				plane_alpha;
 		};
 	};
 
@@ -105,5 +107,6 @@ struct s3c_fb_win_config_data {
 						struct s3c_fb_user_ion_client)
 #define S3CFB_WIN_CONFIG		_IOW('F', 209, \
 						struct s3c_fb_win_config_data)
+#define S3CFB_WIN_PSR_EXIT		_IOW('F', 210, int)
 
 #endif /* __S3C_FB_H__ */

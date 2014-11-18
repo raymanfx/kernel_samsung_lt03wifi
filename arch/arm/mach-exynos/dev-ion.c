@@ -13,11 +13,9 @@
 #include <linux/ion.h>
 #include <linux/exynos_ion.h>
 #include <linux/slab.h>
-#include <mach/exynos-ion.h>
-
 
 struct ion_platform_data exynos_ion_pdata = {
-	.nr = 3,
+	.nr = 4,
 	.heaps = {
 		{	.type = ION_HEAP_TYPE_SYSTEM,
 			.name = "ion_noncontig_heap",
@@ -31,6 +29,13 @@ struct ion_platform_data exynos_ion_pdata = {
 			.name = "exynos_contig_heap",
 			.id = EXYNOS_ION_HEAP_EXYNOS_CONTIG_ID,
 		},
+		{	.type = ION_HEAP_TYPE_CHUNK,
+			.name = "ion_chunk_heap",
+			.id = EXYNOS_ION_HEAP_CHUNK_ID,
+			.size = SZ_256M,
+			.align = SZ_1M,
+			.priv = (void *)SZ_1M,
+		},
 	}
 };
 
@@ -41,3 +46,10 @@ struct platform_device exynos_device_ion = {
 		.platform_data = &exynos_ion_pdata,
 	}
 };
+
+static int __init __register_ion(void)
+{
+	ion_reserve(&exynos_ion_pdata);
+	return platform_device_register(&exynos_device_ion);
+}
+subsys_initcall(__register_ion);

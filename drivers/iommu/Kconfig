@@ -125,7 +125,7 @@ config IRQ_REMAP
 
 config EXYNOS_IOMMU
 	bool "Exynos IOMMU Support"
-	depends on ARCH_EXYNOS && EXYNOS_DEV_SYSMMU
+	depends on ARCH_EXYNOS
 	select IOMMU_API
 	help
 	  Support for the IOMMU(System MMU) of Samsung Exynos application
@@ -145,11 +145,6 @@ config EXYNOS_IOVMM
 	  an IO virtual memory region with a physical memory region
 	  and managing the allocated virtual memory regions.
 
-config EXYNOS_IOVMM_ALIGN64K
-	bool "Let I/O memory region 64KB aligned"
-	default y
-	depends on EXYNOS_IOVMM
-
 config EXYNOS_IOMMU_DEBUG
 	bool "Debugging log for Exynos IOMMU"
 	depends on EXYNOS_IOMMU
@@ -158,6 +153,13 @@ config EXYNOS_IOMMU_DEBUG
 	  happens in the IOMMU driver
 
 	  Say N unless you need kernel log message for IOMMU debugging
+
+config EXYNOS_IOMMU_RECOVER_FAULT_HANDLER
+	bool "Register recover fault handler for Exynos IOMMU"
+	depends on EXYNOS_IOMMU
+	help
+	  Select this to use recover fault handler instead of default
+	  fault handler bringing the system down
 
 # OMAP IOMMU support
 config OMAP_IOMMU

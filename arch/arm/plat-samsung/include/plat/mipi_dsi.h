@@ -14,14 +14,40 @@
 
 #if defined(CONFIG_LCD_MIPI_S6E8AB0)
 extern struct mipi_dsim_lcd_driver s6e8ab0_mipi_lcd_driver;
-#elif defined (CONFIG_LCD_MIPI_S6E63M0)
+#elif defined(CONFIG_LCD_MIPI_S6E8AA0)
+extern struct mipi_dsim_lcd_driver s6e8aa0_mipi_lcd_driver;
+#elif defined(CONFIG_LCD_MIPI_S6E63M0)
 extern struct mipi_dsim_lcd_driver s6e63m0_mipi_lcd_driver;
-#elif defined (CONFIG_LCD_MIPI_TC358764)
+#elif defined(CONFIG_LCD_MIPI_TC358764)
 extern struct mipi_dsim_lcd_driver tc358764_mipi_lcd_driver;
+#elif defined(CONFIG_LCD_MIPI_HYDISWUXGA)
+extern struct mipi_dsim_lcd_driver hydiswuxga_mipi_lcd_driver;
+#elif defined(CONFIG_LCD_MIPI_AMS480GYXX)
+extern struct mipi_dsim_lcd_driver ams480gyxx_mipi_lcd_driver;
+#elif defined(CONFIG_LCD_MIPI_ER63311)
+extern struct mipi_dsim_lcd_driver er63311_mipi_lcd_driver;
+#elif defined(CONFIG_LCD_MIPI_S6E8FA0)
+extern struct mipi_dsim_lcd_driver s6e8fa0_6P_mipi_lcd_driver;
+#elif defined(CONFIG_LCD_MIPI_S6E3FA0)
+extern struct mipi_dsim_lcd_driver s6e3fa0_mipi_lcd_driver;
+#elif defined(CONFIG_LCD_MIPI_S6TNMR7)
+extern struct mipi_dsim_lcd_driver s6tnmr7_mipi_lcd_driver;
+#elif defined(CONFIG_LCD_MIPI_S6E3HA1)
+extern struct mipi_dsim_lcd_driver s6e3ha1_mipi_lcd_driver;
+#endif
+
+#ifdef CONFIG_FB_I80IF
+extern int s5p_mipi_dsi_command_run(struct mipi_dsim_device *dsim);
 #endif
 
 extern int s5p_mipi_dsi_wr_data(struct mipi_dsim_device *dsim,
-	unsigned int data_id, unsigned int data0, unsigned int data1);
+	u8 cmd, const u8 *buf, u32 len);
+
+extern int s5p_mipi_dsi_rd_data(struct mipi_dsim_device *dsim, u8 data_id,
+	 u8 addr, u8 count, u8 *buf, u8 rxfifo_done);
+
+extern int s5p_mipi_dsi_enable_by_fimd(struct device *dsim_device);
+extern int s5p_mipi_dsi_disable_by_fimd(struct device *dsim_device);
 
 enum mipi_ddi_interface {
 	RGB_IF = 0x4000,

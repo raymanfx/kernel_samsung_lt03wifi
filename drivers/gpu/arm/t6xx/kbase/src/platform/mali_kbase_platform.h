@@ -24,7 +24,10 @@ struct exynos_context
 	int cmu_pmu_status;
 	/** cmd & pmu lock */
 	spinlock_t cmu_pmu_lock;
+	union {
 	struct clk *sclk_g3d;
+	struct clk *aclk_g3d;
+	};
 #ifdef CONFIG_MALI_T6XX_DVFS
 	/*To calculate utilization for x sec*/
 	int time_tick;
@@ -44,5 +47,15 @@ void kbase_platform_term(kbase_device *kbdev);
 
 int kbase_platform_clock_on(struct kbase_device *kbdev);
 int kbase_platform_clock_off(struct kbase_device *kbdev);
+
+#if SOC_NAME == 5412
+#define EXYNOS5412_G3D_CONFIGURATION        EXYNOS5410_G3D_CONFIGURATION
+#define EXYNOS5412_G3D_STATUS               EXYNOS5410_G3D_STATUS
+#define EXYNOS5412_G3D_OPTION               EXYNOS5410_G3D_OPTION
+#elif SOC_NAME == 5420
+#define EXYNOS5420_G3D_CONFIGURATION        EXYNOS5410_G3D_CONFIGURATION
+#define EXYNOS5420_G3D_STATUS               EXYNOS5410_G3D_STATUS
+#define EXYNOS5420_G3D_OPTION               EXYNOS5410_G3D_OPTION
+#endif
 
 #endif /* _KBASE_PLATFORM_H_ */

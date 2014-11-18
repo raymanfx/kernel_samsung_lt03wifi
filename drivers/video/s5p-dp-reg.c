@@ -55,7 +55,7 @@ void s5p_dp_lane_swap(struct s5p_dp_device *dp, bool enable)
 {
 	u32 reg;
 
-	if (soc_is_exynos5250()) {
+	if (LANE_COUNT4 == dp->video_info->lane_count) {
 		if (enable)
 			reg = LANE3_MAP_LOGIC_LANE_0 | LANE2_MAP_LOGIC_LANE_1 |
 				LANE1_MAP_LOGIC_LANE_2 | LANE0_MAP_LOGIC_LANE_3;
@@ -92,8 +92,13 @@ void s5p_dp_init_analog_param(struct s5p_dp_device *dp)
 			TX_CUR1_2X | TX_CUR_16_MA;
 		writel(reg, dp->reg_base + S5P_DP_PLL_FILTER_CTL_1);
 
+#ifdef CONFIG_S5P_DP_PSR
+		reg = CH3_AMP_500_MV | CH2_AMP_500_MV |
+			CH1_AMP_500_MV | CH0_AMP_500_MV;
+#else
 		reg = CH3_AMP_400_MV | CH2_AMP_400_MV |
 			CH1_AMP_400_MV | CH0_AMP_400_MV;
+#endif
 		writel(reg, dp->reg_base + S5P_DP_TX_AMP_TUNING_CTL);
 	} else {
 		int tx_amp;
@@ -184,8 +189,13 @@ void s5p_dp_reset(struct s5p_dp_device *dp)
 	writel(0x0, dp->reg_base + S5P_DP_PKT_SEND_CTL);
 	writel(0x0, dp->reg_base + S5P_DP_HDCP_CTL);
 
+#ifdef CONFIG_S5P_DP_ESD_RECOVERY
+	writel(0x01, dp->reg_base + S5P_DP_HPD_DEGLITCH_L);
+	writel(0x00, dp->reg_base + S5P_DP_HPD_DEGLITCH_H);
+#else
 	writel(0x5e, dp->reg_base + S5P_DP_HPD_DEGLITCH_L);
 	writel(0x1a, dp->reg_base + S5P_DP_HPD_DEGLITCH_H);
+#endif
 
 	writel(0x10, dp->reg_base + S5P_DP_LINK_DEBUG_CTL);
 
@@ -223,6 +233,46 @@ void s5p_dp_config_interrupt(struct s5p_dp_device *dp)
 	reg = INT_STA_MASK;
 	writel(reg, dp->reg_base + S5P_DP_INT_STA_MASK);
 }
+
+#ifdef CONFIG_S5P_DP_ESD_RECOVERY
+void s5p_dp_enable_esd_interrupt(struct s5p_dp_device *dp)
+{
+	u32 reg;
+
+	reg = readl(dp->reg_base + S5P_DP_COMMON_INT_STA_4);
+	reg &= PLUG;
+	writel(reg, dp->reg_base + S5P_DP_COMMON_INT_STA_4);
+
+	reg = readl(dp->reg_base + S5P_DP_COMMON_INT_MASK_4);
+	reg |= PLUG;
+	writel(reg, dp->reg_base + S5P_DP_COMMON_INT_MASK_4);
+}
+
+void s5p_dp_disable_esd_interrupt(struct s5p_dp_device *dp)
+{
+	u32 reg;
+
+	reg = readl(dp->reg_base + S5P_DP_COMMON_INT_STA_4);
+	writel(reg, dp->reg_base + S5P_DP_COMMON_INT_STA_4);
+
+	reg = readl(dp->reg_base + S5P_DP_COMMON_INT_MASK_4);
+	reg &= ~PLUG;
+	writel(reg, dp->reg_base + S5P_DP_COMMON_INT_MASK_4);
+}
+
+int s5p_dp_clear_esd_interrupt(struct s5p_dp_device *dp)
+{
+	u32 reg;
+	int ret = 0;
+
+	reg = readl(dp->reg_base + S5P_DP_COMMON_INT_STA_4);
+	writel(reg, dp->reg_base + S5P_DP_COMMON_INT_STA_4);
+	if(reg & PLUG)
+		ret = 1;
+
+	return ret;
+}
+#endif
 
 u32 s5p_dp_get_pll_lock_status(struct s5p_dp_device *dp)
 {
@@ -1048,6 +1098,38 @@ void s5p_dp_reset_macro(struct s5p_dp_device *dp)
 	writel(reg, dp->reg_base + S5P_DP_PHY_TEST);
 }
 
+void s5p_dp_reset_macro_onoff(struct s5p_dp_device *dp, int onoff)
+{
+	u32 reg;
+
+	if (onoff) {
+		reg = readl(dp->reg_base + S5P_DP_PHY_TEST);
+		reg |= MACRO_RST;
+		writel(reg, dp->reg_base + S5P_DP_PHY_TEST);	  
+		/* 10 us is the minimum reset time. */
+		udelay(10);
+	} else {
+		reg = readl(dp->reg_base + S5P_DP_PHY_TEST);
+		reg &= ~MACRO_RST;
+		writel(reg, dp->reg_base + S5P_DP_PHY_TEST);
+	}
+}
+
+void s5p_dp_reset_serdes_fifo(struct s5p_dp_device *dp)
+{
+	u32 reg;
+
+	/* SERDES FIFO Function disable & enable */
+	reg = readl(dp->reg_base + S5P_DP_FUNC_EN_2);
+	reg |= SERDES_FIFO_FUNC_EN_N;
+	writel(reg, dp->reg_base + S5P_DP_FUNC_EN_2);
+
+	udelay(30);
+
+	reg &= ~SERDES_FIFO_FUNC_EN_N;
+	writel(reg, dp->reg_base + S5P_DP_FUNC_EN_2);
+}
+
 int s5p_dp_init_video(struct s5p_dp_device *dp)
 {
 	u32 reg;
@@ -1260,3 +1342,286 @@ void s5p_dp_disable_scrambling(struct s5p_dp_device *dp)
 	reg |= SCRAMBLING_DISABLE;
 	writel(reg, dp->reg_base + S5P_DP_TRAINING_PTN_SET);
 }
+
+#ifdef CONFIG_S5P_DP_PSR
+void s5p_dp_set_video_timing(struct s5p_dp_device *dp)
+{
+	u32 reg;
+	struct fb_videomode *video_mode;
+	u32 v_total;
+	u32 h_total;
+	u32 stream_clk;
+	u64 m_vid;
+	u32 n_vid = 0x8000;
+
+	/* video stop before set video_timing */
+	s5p_dp_stop_video(dp);
+
+	/* video format information from registers */
+	s5p_dp_set_video_timing_mode(dp, VIDEO_TIMING_FROM_REGISTER);
+
+	/* set video information */
+
+	video_mode = dp->video_info->video_mode;
+
+	v_total = video_mode->yres + video_mode->vsync_len
+		+ video_mode->upper_margin + video_mode->lower_margin;
+	reg = v_total & 0xff;
+	writel(reg, dp->reg_base + S5P_DP_TOTAL_LINE_CFG_L);
+
+	reg = (v_total >> 8) & 0xff;
+	writel(reg, dp->reg_base + S5P_DP_TOTAL_LINE_CFG_H);
+
+	reg = video_mode->yres & 0xff;
+	writel(reg, dp->reg_base + S5P_DP_ACTIVE_LINE_CFG_L);
+
+	reg = (video_mode->yres >> 8) & 0xff,
+		writel(reg, dp->reg_base + S5P_DP_ACTIVE_LINE_CFG_H);
+
+	reg = video_mode->lower_margin;
+	writel(reg, dp->reg_base + S5P_DP_V_F_PORCH_CFG);
+
+	reg = video_mode->vsync_len;
+	writel(reg, dp->reg_base + S5P_DP_V_SYNC_WIDTH_CFG);
+
+	reg = video_mode->upper_margin;
+	writel(reg, dp->reg_base + S5P_DP_V_B_PORCH_CFG);
+
+	h_total = video_mode->xres + video_mode->hsync_len
+		+ video_mode->left_margin + video_mode->right_margin;
+	reg = h_total & 0xff;
+	writel(reg, dp->reg_base + S5P_DP_TOTAL_PIXEL_CFG_L);
+
+	reg = (h_total >> 8) & 0xff;
+	writel(reg, dp->reg_base + S5P_DP_TOTAL_PIXEL_CFG_H);
+
+	reg = video_mode->xres & 0xff;
+	writel(reg, dp->reg_base + S5P_DP_ACTIVE_PIXEL_CFG_L);
+
+	reg = (video_mode->xres >> 8) & 0xff;
+	writel(reg, dp->reg_base + S5P_DP_ACTIVE_PIXEL_CFG_H);
+
+	reg = video_mode->right_margin & 0xff;
+	writel(reg, dp->reg_base + S5P_DP_H_F_PORCH_CFG_L);
+
+	reg = (video_mode->right_margin >> 8) & 0xff;
+	writel(reg, dp->reg_base + S5P_DP_H_F_PORCH_CFG_H);
+
+	reg = video_mode->hsync_len & 0xff;
+	writel(reg, dp->reg_base + S5P_DP_H_SYNC_CFG_L);
+
+	reg = (video_mode->hsync_len >> 8) & 0xff;
+
+	writel(reg, dp->reg_base + S5P_DP_H_SYNC_CFG_H);
+
+	reg = video_mode->left_margin & 0xff;
+	writel(reg, dp->reg_base + S5P_DP_H_B_PORCH_CFG_L);
+
+	reg = (video_mode->left_margin >> 8) & 0xff;
+
+	writel(reg, dp->reg_base + S5P_DP_H_B_PORCH_CFG_H);
+
+	/* use force pixel clock fre. change status and force clock not change */
+	s5p_dp_force_stream_clock_change_status(dp);
+
+	/* set FIX_M_VID & M_VID : use register M_VID */
+	stream_clk = v_total * h_total * video_mode->refresh;
+	m_vid = (u64)stream_clk * n_vid;
+	do_div(m_vid, (27000000 * dp->link_train.link_rate));
+	s5p_dp_set_video_cr_mn(dp, REGISTER_M, (u32)m_vid, n_vid);
+
+	dev_dbg(dp->dev, "%s: v_total=%d, h_total=%d, stream_clk=%d, \
+		m_vid =%d, n_vid=%d\n", \
+		__func__, v_total, h_total, stream_clk, (u32)m_vid, n_vid);
+
+	/* video start after set video_timing */
+	s5p_dp_start_video(dp);
+}
+
+void s5p_dp_force_stream_clock_change_status(struct s5p_dp_device *dp)
+{
+	u32 reg;
+
+	reg = readl(dp->reg_base + S5P_DP_SYS_CTL_2);
+	reg |= CHA_CTRL;
+	writel(reg, dp->reg_base + S5P_DP_SYS_CTL_2);
+
+	reg = readl(dp->reg_base + S5P_DP_SYS_CTL_2);
+	reg &= ~FORCE_CHA;
+	writel(reg, dp->reg_base + S5P_DP_SYS_CTL_2);
+}
+
+void s5p_dp_set_force_stream_valid(struct s5p_dp_device *dp)
+{
+	u32 reg;
+	reg = readl(dp->reg_base + S5P_DP_SYS_CTL_3);
+	reg |= VALID_CTRL;
+	writel(reg, dp->reg_base + S5P_DP_SYS_CTL_3);
+
+	reg = readl(dp->reg_base + S5P_DP_SYS_CTL_3);
+	reg |= F_VALID;
+	writel(reg, dp->reg_base + S5P_DP_SYS_CTL_3);
+}
+
+void s5p_dp_clear_force_stream_valid(struct s5p_dp_device *dp)
+{
+	u32 reg;
+
+	reg = readl(dp->reg_base + S5P_DP_SYS_CTL_3);
+	reg &= ~VALID_CTRL;
+	writel(reg, dp->reg_base + S5P_DP_SYS_CTL_3);
+}
+
+void s5p_dp_set_fifo_reset(struct s5p_dp_device *dp)
+{
+	u32 reg;
+
+	reg = readl(dp->reg_base + S5P_DP_PSR_COMMAND1);
+	reg |= FIFO_RST;
+	writel(reg, dp->reg_base + S5P_DP_PSR_COMMAND1);
+}
+
+void s5p_dp_clear_fifo_reset(struct s5p_dp_device *dp)
+{
+	u32 reg;
+	reg = readl(dp->reg_base + S5P_DP_PSR_COMMAND1);
+	reg &= ~FIFO_RST;
+	writel(reg, dp->reg_base + S5P_DP_PSR_COMMAND1);
+}
+
+void s5p_dp_set_idle_en(struct s5p_dp_device *dp)
+{
+	u32 reg;
+	reg = readl(dp->reg_base + S5P_DP_PSR_COMMAND1);
+	reg |= IDLE_EN;
+	writel(reg, dp->reg_base + S5P_DP_PSR_COMMAND1);
+}
+
+void s5p_dp_sr_wait_on(struct s5p_dp_device *dp)
+{
+	u32 reg;
+	reg = readl(dp->reg_base + S5P_DP_PSR_COMMAND0);
+	reg |= (1 << 3);
+	writel(reg, dp->reg_base + S5P_DP_PSR_COMMAND0);
+}
+
+void s5p_dp_enable_psr(struct s5p_dp_device *dp)
+{
+	u32 reg;
+	reg = readl(dp->reg_base + S5P_DP_PSR_CONFIG);
+	reg |= 0x0 << 22;
+	writel(reg, dp->reg_base + S5P_DP_PSR_CONFIG);
+
+	reg = readl(dp->reg_base + S5P_DP_PSR_CONFIG);
+	reg |= ML_OFF_STATUS_INACTIVE;
+	writel(reg, dp->reg_base + S5P_DP_PSR_CONFIG);
+
+	reg = readl(dp->reg_base + S5P_DP_PSR_CONFIG);
+	reg |= (0 << 23 | 0 << 24 | 0 << 25);
+	writel(reg, dp->reg_base + S5P_DP_PSR_CONFIG);
+
+	reg = readl(dp->reg_base + S5P_DP_PSR_CONFIG);
+	reg &= ~NUM_IDLE_PATTERNS_EXIT_MASK;
+	reg |= NUM_IDLE_PATTERNS_EXIT(0x5);
+	writel(reg, dp->reg_base + S5P_DP_PSR_CONFIG);
+
+	reg = readl(dp->reg_base + S5P_DP_PSR_COMMAND0);
+	reg |= PSR_ON;
+	writel(reg, dp->reg_base + S5P_DP_PSR_COMMAND0);
+}
+
+void s5p_dp_scramber_rst_cnt(struct s5p_dp_device *dp)
+{
+	writel(5, dp->reg_base + S5P_DP_SCRAMBER_RESET_CNT);
+}
+
+void s5p_dp_disable_psr(struct s5p_dp_device *dp)
+{
+	u32 reg;
+	reg = readl(dp->reg_base + S5P_DP_PSR_COMMAND0);
+	reg &= ~PSR_ON;
+	writel(reg, dp->reg_base + S5P_DP_PSR_COMMAND0);
+}
+
+void s5p_dp_exit_psr(struct s5p_dp_device *dp)
+{
+	u32 reg;
+	reg = readl(dp->reg_base + S5P_DP_PSR_COMMAND0);
+	reg |= (1 << 2);
+	writel(reg, dp->reg_base + S5P_DP_PSR_COMMAND0);
+}
+
+u32 s5p_dp_get_psr_status(struct s5p_dp_device *dp)
+{
+	u32 reg;
+	reg = readl(dp->reg_base + S5P_DP_PSR_COMMAND0);
+	if (reg & PSR_STATUS)
+		return PSR_STATUS_ACTIVE;
+	else
+		return PSR_STATUS_INACTIVE;
+}
+
+void s5p_dp_enable_ssc(struct s5p_dp_device *dp, bool enable)
+{
+	u32 reg;
+	int timeout_loop = 0;
+	u8 data;
+	if (enable) {
+		reg = readl(dp->reg_base + S5P_DP_FUNC_EN_2);
+		reg |= SSC_FUNC_EN_N;
+		writel(reg, dp->reg_base + S5P_DP_FUNC_EN_2);
+		reg = SPREAD_AMP | MODULATION_FREQ_30KHZ;
+		writel(reg, dp->reg_base + S5P_DP_DP_DN_SPREAD_CTL);
+		reg = readl(dp->reg_base + DP_DN_SPREAD_CTL_2);
+		reg &= ~(SSC_D_CTRL | FS_CTRL_TH_CTRL);
+		writel(reg, dp->reg_base + DP_DN_SPREAD_CTL_2);
+		/* Power up PLL */
+		if (s5p_dp_get_pll_lock_status(dp) == PLL_UNLOCKED) {
+			while (s5p_dp_get_pll_lock_status(dp) == PLL_UNLOCKED) {
+				timeout_loop++;
+				if (DP_TIMEOUT_LOOP_COUNT < timeout_loop) {
+					dev_err(dp->dev, "failed to get pll lock status\n");
+					return;
+				}
+				udelay(10);
+			}
+		}
+
+		reg = readl(dp->reg_base + S5P_DP_FUNC_EN_2);
+		reg &= ~SSC_FUNC_EN_N;
+		writel(reg, dp->reg_base + S5P_DP_FUNC_EN_2);
+
+		/* enable the DPCD SSC */
+		s5p_dp_read_byte_from_dpcd(dp, DPCD_ADDR_DOWNSPREAD_CTRL,
+			&data);
+		s5p_dp_write_byte_to_dpcd(dp, DPCD_ADDR_DOWNSPREAD_CTRL,
+			data | 0x10);
+		} else {
+		reg = readl(dp->reg_base + S5P_DP_DP_DN_SPREAD_CTL);
+		reg &= ~SPREAD_AMP;
+		writel(reg, dp->reg_base + S5P_DP_DP_DN_SPREAD_CTL);
+
+		reg = readl(dp->reg_base + S5P_DP_FUNC_EN_2);
+		reg |= SSC_FUNC_EN_N;
+		writel(reg, dp->reg_base + S5P_DP_FUNC_EN_2);
+
+		/* Disable the DPCD SSC */
+		s5p_dp_read_byte_from_dpcd(dp, DPCD_ADDR_DOWNSPREAD_CTRL,
+			&data);
+		s5p_dp_write_byte_to_dpcd(dp, DPCD_ADDR_DOWNSPREAD_CTRL,
+			data & ~0x10);
+	}
+
+	/* SERDES FIFO Function disable & enable */
+	reg = readl(dp->reg_base + S5P_DP_FUNC_EN_2);
+	reg |= SERDES_FIFO_FUNC_EN_N;
+	writel(reg, dp->reg_base + S5P_DP_FUNC_EN_2);
+
+	udelay(30);
+
+	reg &= ~SERDES_FIFO_FUNC_EN_N;
+	writel(reg, dp->reg_base + S5P_DP_FUNC_EN_2);
+	s5p_dp_reset_macro(dp);
+}
+#endif
+

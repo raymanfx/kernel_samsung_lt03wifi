@@ -304,4 +304,13 @@ extern int s5p_register_gpioint_bank(int chain_irq, int start, int nr_groups);
 #define s5p_register_gpioint_bank(chain_irq, start, nr_groups) do { } while (0)
 #endif
 
+/**
+ * exynos_set_lpa_pdn() - Help to set GPIO power down register before
+ * entering LPA(Low Power Audio) mode. This mode is implemented as a
+ * kind of cpuidle state(C-state).
+ * In this mode, Normal GPIO cannot sustain configuration and need to
+ * configure power down register.
+ */
+extern void exynos_set_lpa_pdn(unsigned int gpio_end);
+
 #endif /* __PLAT_GPIO_CFG_H */

@@ -32,6 +32,7 @@
 #include <linux/hw_breakpoint.h>
 #include <linux/cpuidle.h>
 #include <linux/console.h>
+#include <linux/cpufreq.h>
 
 #include <asm/cacheflush.h>
 #include <asm/processor.h>
@@ -313,6 +314,7 @@ void machine_shutdown(void)
 void machine_halt(void)
 {
 	machine_shutdown();
+	local_irq_disable();
 	while (1);
 }
 
@@ -338,6 +340,7 @@ void machine_restart(char *cmd)
 
 	/* Whoops - the platform was unable to reboot. Tell the user! */
 	printk("Reboot failed -- System halted\n");
+	local_irq_disable();
 	while (1);
 }
 
@@ -469,6 +472,46 @@ void __show_regs(struct pt_regs *regs)
 		asm("mrc p15, 0, %0, c1, c0\n" : "=r" (ctrl));
 
 		printk("Control: %08x%s\n", ctrl, buf);
+	}
+
+#endif
+
+#ifdef CONFIG_CPU_CP15
+	{
+		unsigned long reg0, reg1, reg2, reg3;
+
+		asm ("mrc p15, 0, %0, c0, c0, 5\n": "=r" (reg0));
+		if (reg0 & (1 << 31))
+			/* MPIDR */
+			printk("CPU %ld / CLUSTER %ld\n",
+					reg0 & 0x3, (reg0 >> 8) & 0xF);
+
+		asm ("mrc p15, 0, %0, c5, c0, 0\n\t"
+		     "mrc p15, 0, %1, c5, c1, 0\n"
+		     : "=r" (reg0), "=r" (reg1));
+		asm ("mrc p15, 0, %0, c5, c0, 1\n\t"
+		     "mrc p15, 0, %1, c5, c1, 1\n"
+		     : "=r" (reg2), "=r" (reg3));
+		printk("DFSR: %08lx, ADFSR: %08lx, IFSR: %08lx, AIFSR: %08lx\n",
+			reg0, reg1, reg2, reg3);
+
+		asm ("mrc p15, 0, %0, c0, c0, 0\n": "=r" (reg0));
+		if (((reg0 >> 4) & 0xFFF) == 0xC0F) { /* Cortex-A15 */
+			asm ("mrrc p15, 0, %0, %1, c15\n\t"
+			     "mrrc p15, 1, %2, %3, c15\n"
+			     : "=r" (reg0), "=r" (reg1),
+			     "=r" (reg2), "=r" (reg3));
+			printk("CPUMERRSR: %08lx_%08lx, L2MERRSR: %08lx_%08lx\n",
+				reg1, reg0, reg3, reg2);
+		}
+	}
+#endif
+
+	printk("CPUFREQ: %d KHz\n", cpufreq_get(raw_smp_processor_id()));
+#ifdef CONFIG_ARM_EXYNOS5410_BUS_DEVFREQ
+	{
+		extern unsigned long curr_mif_freq;
+		printk("MIFFREQ: %ld KHz\n", curr_mif_freq);
 	}
 #endif
 

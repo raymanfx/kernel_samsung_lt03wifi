@@ -18,17 +18,144 @@
 #include <linux/err.h>
 #include <linux/memblock.h>
 #include <linux/mm.h>
-#include <linux/cma.h>
+#include <plat/cpu.h>
+#include "reserve-mem.h"
 
-void __init exynos_cma_region_reserve(struct cma_region *regions_normal,
-				      struct cma_region *regions_secure,
-				      size_t align_secure, const char *map)
+#ifndef CONFIG_CMA_DEBUG
+static inline void print_reserved_region(struct cma_region *reg)
 {
-	struct cma_region *reg;
-	phys_addr_t paddr_last = PHYS_OFFSET + SZ_1G;
+	pr_info("S5P/CMA: Reserved 0x%08x@0x%08x for '%s'\n",
+				reg->size, reg->start, reg->name);
+}
+#else
+#define print_reserved_region(reg) do { } whlie (0)
+#endif
 
-	for (reg = regions_normal; reg->size != 0; reg++) {
+static phys_addr_t __init __cma_reserve_regionset(struct cma_region *reg,
+						  phys_addr_t max_addr)
+{
+	phys_addr_t last_addr = max_addr;
+
+	for (; reg && reg->size; reg++) {
+		reg->alignment = (reg->alignment) ?
+				ALIGN(reg->alignment, SZ_64K) : SZ_64K;
+		reg->size = ALIGN(reg->size, SZ_64K);
+
+		if (!reg->start) {
+			reg->start = __memblock_alloc_base(
+					reg->size, reg->alignment, max_addr);
+			if (reg->start == 0) {
+				pr_err("S5P/CMA: Failed to reserve '%s'\n",
+					reg->name);
+				continue;
+			}
+
+			last_addr = reg->start;
+		} else {
+			reg->start = ALIGN(reg->size, SZ_64K);
+
+			if (memblock_is_region_reserved(reg->start, reg->size)
+				|| memblock_reserve(reg->start, reg->size)) {
+				pr_err("S5P/CMA: Failed to reserve '%s' @ %#x\n",
+					reg->name, reg->start);
+				continue;
+			}
+		}
+
+		reg->reserved = 1;
+
+		if (cma_early_region_register(reg)) {
+			pr_err("S5P/CMA: Failed to register '%s'\n", reg->name);
+			memblock_free(reg->start, reg->size);
+		}
+		print_reserved_region(reg);
+	}
+
+	return last_addr;
+}
+
+static void __init __cma_secure_reserve(phys_addr_t paddr_last,
+	struct cma_region *regions_secure, struct cma_region *regions_adjacent)
+{
+	paddr_last = __cma_reserve_regionset(regions_adjacent, paddr_last);
+	__cma_reserve_regionset(regions_secure, paddr_last);
+}
+
+/* exynos_cma_region_reserve - reserving physically contiguous memory regions
+ * @regions: ordinary regions to reserve
+ * @regions_secure: regions to be locked by secure regions that are not
+ *           accessible from normal world when DRM play-back is working.
+ * @regions_adjacent: regions that needs to be adjacent to the @regions_secure.
+ *           All reiongs of @regions_adjacent must be adjacent to other near
+ *           regions and the first region of @regions_adjacent is also adjacent
+ *           to the last region of @regions_secure. all 'start' members of
+ *           @regions_adjacent are ignored.
+ *
+ * This function reserves given physically contiguous regions earlier than
+ * the buddy system is initialized so that prevents allocating the regions
+ * by the kernel.
+ */
+void __init exynos_cma_region_reserve(struct cma_region *regions,
+					struct cma_region *regions_secure,
+					struct cma_region *regions_adjacent,
+					const char *map)
+{
+	phys_addr_t paddr_last = 0xFFFFFFFF;
+	struct cma_region *reg;
+	int ret;
+
+	if (map)
+		cma_set_defaults(NULL, map);
+
+	/* reserving order:
+	   1. normal regions with start address
+	   2. normal regions without start address
+	 */
+	for (reg = regions; reg && reg->size; reg++) {
+		if (!reg->start)
+			continue;
+
+		if (!IS_ALIGNED(reg->start, PAGE_SIZE)) {
+			pr_err("S5P/CMA: Failed to reserve '%s': "
+				"address %#x not page-aligned\n",
+				reg->name, reg->start);
+			continue;
+		}
+
+		if (!IS_ALIGNED(reg->size, PAGE_SIZE)) {
+			pr_debug("S5P/CMA: size of '%s' is not page-aligned\n",
+								reg->name);
+			reg->size = PAGE_ALIGN(reg->size);
+		}
+
+		if (!memblock_is_region_memory(reg->start, reg->size)) {
+			pr_err("S5P/CMA: %s(0x%08x ~ 0x%08x)"
+				" is outside of system memory",
+				reg->name, reg->start, reg->start + reg->size);
+			continue;
+		}
+
+		if (memblock_is_region_reserved(reg->start, reg->size) ||
+			memblock_reserve(reg->start, reg->size)) {
+			pr_err("S5P/CMA: Failed to reserve '%s'\n",
+							reg->name);
+			continue;
+		}
+
+		reg->reserved = 1;
+		reg->alignment = PAGE_SIZE; /* for 100% success to register */
+
+		print_reserved_region(reg);
+
+		ret = cma_early_region_register(reg);
+		paddr_last = min(paddr_last, reg->start);
+	}
+
+	for (reg = regions; reg && (reg->size != 0); reg++) {
 		phys_addr_t paddr;
+
+		if (reg->start)
+			continue;
 
 		if (!IS_ALIGNED(reg->size, PAGE_SIZE)) {
 			pr_debug("S5P/CMA: size of '%s' is NOT page-aligned\n",
@@ -36,9 +163,8 @@ void __init exynos_cma_region_reserve(struct cma_region *regions_normal,
 			reg->size = PAGE_ALIGN(reg->size);
 		}
 
-
 		if (reg->reserved) {
-			pr_err("S5P/CMA: '%s' alread reserved\n", reg->name);
+			pr_err("S5P/CMA: '%s' already reserved\n", reg->name);
 			continue;
 		}
 
@@ -46,7 +172,7 @@ void __init exynos_cma_region_reserve(struct cma_region *regions_normal,
 			if ((reg->alignment & ~PAGE_MASK) ||
 				(reg->alignment & ~reg->alignment)) {
 				pr_err("S5P/CMA: Failed to reserve '%s': "
-						"incorrect alignment 0x%08x.\n",
+						"incorrect alignment %#x.\n",
 						reg->name, reg->alignment);
 				continue;
 			}
@@ -54,24 +180,10 @@ void __init exynos_cma_region_reserve(struct cma_region *regions_normal,
 			reg->alignment = PAGE_SIZE;
 		}
 
-		if (reg->start) {
-			if (!memblock_is_region_reserved(reg->start, reg->size)
-			    && (memblock_reserve(reg->start, reg->size) == 0))
-				reg->reserved = 1;
-			else
-				pr_err("S5P/CMA: Failed to reserve '%s'\n",
-								reg->name);
-
-			if (reg->reserved)
-				pr_debug("S5P/CMA: "
-					"Reserved 0x%08x/0x%08x for '%s'\n",
-					reg->start, reg->size, reg->name);
-			continue;
-		}
-
-		paddr = memblock_find_in_range(0, paddr_last,
+		paddr = memblock_find_in_range(0, MEMBLOCK_ALLOC_ANYWHERE,
 						reg->size, reg->alignment);
-		if (paddr) {
+
+		if (paddr != 0) {
 			if (memblock_reserve(paddr, reg->size)) {
 				pr_err("S5P/CMA: Failed to reserve '%s'\n",
 								reg->name);
@@ -83,91 +195,14 @@ void __init exynos_cma_region_reserve(struct cma_region *regions_normal,
 		} else {
 			pr_err("S5P/CMA: No free space in memory for '%s'\n",
 								reg->name);
+			continue;
 		}
 
-		pr_debug("S5P/CMA: Reserved 0x%08x/0x%08x for '%s'\n",
-					reg->start, reg->size, reg->name);
+		print_reserved_region(reg);
 
-		if (cma_early_region_register(reg)) {
-			pr_err("S5P/CMA: Failed to register '%s'\n",
-								reg->name);
-			memblock_free(reg->start, reg->size);
-		} else {
-			paddr_last = min(paddr, paddr_last);
-		}
+		ret = cma_early_region_register(reg); /* 100% success */
+		paddr_last = min(paddr_last, reg->start);
 	}
 
-	if (align_secure & ~align_secure) {
-		pr_err("S5P/CMA: "
-			"Wrong alignment requirement for secure region.\n");
-	} else if (regions_secure && regions_secure->size) {
-		size_t size_secure = 0;
-		size_t align_secure_end = align_secure;
-
-		for (reg = regions_secure; reg->size != 0; reg++)
-			size_secure += reg->size;
-
-		reg--;
-
-		/* Entire secure regions will be merged into 2
-		 * consecutive regions. */
-		if (align_secure == 0) {
-			size_t size_region2;
-			size_t order_region2;
-			size_t aug_size;
-
-			align_secure = 1 <<
-				(get_order((size_secure + 1) / 2) + PAGE_SHIFT);
-			/* Calculation of a subregion size */
-			size_region2 = size_secure - align_secure;
-			order_region2 = get_order(size_region2) + PAGE_SHIFT;
-			if (order_region2 < 20)
-				order_region2 = 20; /* 1MB */
-			order_region2 -= 3; /* divide by 8 */
-			size_region2 = ALIGN(size_region2, 1 << order_region2);
-
-			aug_size = align_secure + size_region2 - size_secure;
-			if (aug_size > 0) {
-				reg->size += aug_size;
-				pr_debug("S5P/CMA: "
-					"Augmented size of '%s' by %#x B.\n",
-					reg->name, aug_size);
-			}
-			align_secure_end = 1 << order_region2;
-		}
-
-		size_secure = ALIGN(size_secure, align_secure_end);
-		pr_debug("S5P/CMA: Reserving 0x%08x (0x%08x) for secure region\n",
-								size_secure, align_secure);
-
-		paddr_last = memblock_alloc_base(size_secure, align_secure,
-						 paddr_last);
-		if (paddr_last) {
-			do {
-				reg->start = paddr_last;
-				reg->reserved = 1;
-				paddr_last += reg->size;
-
-				pr_debug("S5P/CMA: "
-					"Reserved 0x%08x/0x%08x for '%s'\n",
-					reg->start, reg->size, reg->name);
-				if (cma_early_region_register(reg)) {
-					memblock_free(reg->start, reg->size);
-					pr_err("S5P/CMA: "
-					"Failed to register secure region "
-					"'%s'\n", reg->name);
-				} else {
-					size_secure -= reg->size;
-				}
-			} while (reg-- != regions_secure);
-
-			if (size_secure > 0)
-				memblock_free(paddr_last, size_secure);
-		} else {
-			pr_err("S5P/CMA: Failed to reserve secure regions\n");
-		}
-	}
-
-	if (map)
-		cma_set_defaults(NULL, map);
+	__cma_secure_reserve(paddr_last, regions_secure, regions_adjacent);
 }

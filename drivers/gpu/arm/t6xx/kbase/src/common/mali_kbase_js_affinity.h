@@ -2,11 +2,14 @@
  *
  * (C) COPYRIGHT 2011-2012 ARM Limited. All rights reserved.
  *
- * This program is free software and is provided to you under the terms of the GNU General Public License version 2
- * as published by the Free Software Foundation, and any use by you of this program is subject to the terms of such GNU licence.
+ * This program is free software and is provided to you under the terms of the
+ * GNU General Public License version 2 as published by the Free Software
+ * Foundation, and any use by you of this program is subject to the terms
+ * of such GNU licence.
  *
- * A copy of the licence is included with the program, and can also be obtained from Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ * A copy of the licence is included with the program, and can also be obtained
+ * from Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor,
+ * Boston, MA  02110-1301, USA.
  *
  */
 
@@ -20,8 +23,6 @@
 #ifndef _KBASE_JS_AFFINITY_H_
 #define _KBASE_JS_AFFINITY_H_
 
-
-
 /**
  * @addtogroup base_api
  * @{
@@ -32,13 +33,11 @@
  * @{
  */
 
-
 /**
  * @addtogroup kbase_js_affinity Affinity Manager internal APIs.
  * @{
  *
  */
-
 
 /**
  * @brief Decide whether it is possible to submit a job to a particular job slot in the current status
@@ -55,28 +54,24 @@
  * @param kbdev The kbase device structure of the device
  * @param js    Job slot number to check for allowance
  */
-mali_bool kbase_js_can_run_job_on_slot_no_lock( kbase_device *kbdev, int js );
+mali_bool kbase_js_can_run_job_on_slot_no_lock(kbase_device *kbdev, int js);
 
 /**
  * @brief Compute affinity for a given job.
  *
  * Currently assumes an all-on/all-off power management policy.
  * Also assumes there is at least one core with tiler available.
- * Will try to produce an even distribution of cores for SS and
- * NSS jobs. SS jobs will be given cores starting from core-group
- * 0 forward to n. NSS jobs will be given cores from core-group n
- * backwards to 0. This way for example in a T658 SS jobs will
- * tend to run on cores from core-group 0 and NSS jobs will tend
- * to run on cores from core-group 1.
- * An assertion will be raised if computed affinity is 0
  *
- * @param[out] affinity Affinity bitmap computed
+ * Returns MALI_TRUE if a valid affinity was chosen, MALI_FALSE if
+ * no cores were available.
+ *
+ * @param[out] affinity       Affinity bitmap computed
  * @param kbdev The kbase device structure of the device
  * @param katom Job chain of which affinity is going to be found
  * @param js    Slot the job chain is being submitted
 
  */
-void kbase_js_choose_affinity( u64 *affinity, kbase_device *kbdev, kbase_jd_atom *katom, int js );
+mali_bool kbase_js_choose_affinity(u64 * const affinity, kbase_device *kbdev, kbase_jd_atom *katom, int js);
 
 /**
  * @brief Determine whether a proposed \a affinity on job slot \a js would
@@ -85,7 +80,7 @@ void kbase_js_choose_affinity( u64 *affinity, kbase_device *kbdev, kbase_jd_atom
  * The following locks must be held by the caller:
  * - kbasep_js_device_data::runpool_irq::lock
  */
-mali_bool kbase_js_affinity_would_violate( kbase_device *kbdev, int js, u64 affinity );
+mali_bool kbase_js_affinity_would_violate(kbase_device *kbdev, int js, u64 affinity);
 
 /**
  * @brief Affinity tracking: retain cores used by a slot
@@ -93,7 +88,7 @@ mali_bool kbase_js_affinity_would_violate( kbase_device *kbdev, int js, u64 affi
  * The following locks must be held by the caller:
  * - kbasep_js_device_data::runpool_irq::lock
  */
-void kbase_js_affinity_retain_slot_cores( kbase_device *kbdev, int js, u64 affinity );
+void kbase_js_affinity_retain_slot_cores(kbase_device *kbdev, int js, u64 affinity);
 
 /**
  * @brief Affinity tracking: release cores used by a slot
@@ -106,7 +101,7 @@ void kbase_js_affinity_retain_slot_cores( kbase_device *kbdev, int js, u64 affin
  * The following locks must be held by the caller:
  * - kbasep_js_device_data::runpool_irq::lock
  */
-void kbase_js_affinity_release_slot_cores( kbase_device *kbdev, int js, u64 affinity );
+void kbase_js_affinity_release_slot_cores(kbase_device *kbdev, int js, u64 affinity);
 
 /**
  * @brief Register a slot as blocking atoms due to affinity violations
@@ -120,7 +115,7 @@ void kbase_js_affinity_release_slot_cores( kbase_device *kbdev, int js, u64 affi
  * The following locks must be held by the caller:
  * - kbasep_js_device_data::runpool_irq::lock
  */
-void kbase_js_affinity_slot_blocked_an_atom( kbase_device *kbdev, int js );
+void kbase_js_affinity_slot_blocked_an_atom(kbase_device *kbdev, int js);
 
 /**
  * @brief Submit to job slots that have registered that an atom was blocked on
@@ -139,25 +134,21 @@ void kbase_js_affinity_slot_blocked_an_atom( kbase_device *kbdev, int js );
  * - it must hold kbasep_js_device_data::runpool_mutex
  * - it must hold kbasep_js_device_data::runpool_irq::lock
  */
-void kbase_js_affinity_submit_to_blocked_slots( kbase_device *kbdev );
+void kbase_js_affinity_submit_to_blocked_slots(kbase_device *kbdev);
 
 /**
  * @brief Output to the Trace log the current tracked affinities on all slots
  */
-#if defined(CONFIG_MALI_DEBUG) || (KBASE_TRACE_ENABLE != 0)
-void kbase_js_debug_log_current_affinities( kbase_device *kbdev );
-#else /* defined(CONFIG_MALI_DEBUG) || (KBASE_TRACE_ENABLE != 0) */
-OSK_STATIC_INLINE void kbase_js_debug_log_current_affinities( kbase_device *kbdev )
+#if KBASE_TRACE_ENABLE != 0
+void kbase_js_debug_log_current_affinities(kbase_device *kbdev);
+#else				/*  KBASE_TRACE_ENABLE != 0 */
+static INLINE void kbase_js_debug_log_current_affinities(kbase_device *kbdev)
 {
 }
-#endif /* defined(CONFIG_MALI_DEBUG) || (KBASE_TRACE_ENABLE != 0) */
+#endif				/*  KBASE_TRACE_ENABLE != 0 */
 
-/** @} */ /* end group kbase_js_affinity */
-/** @} */ /* end group base_kbase_api */
-/** @} */ /* end group base_api */
+	  /** @} *//* end group kbase_js_affinity */
+	  /** @} *//* end group base_kbase_api */
+	  /** @} *//* end group base_api */
 
-
-
-
-
-#endif /* _KBASE_JS_AFFINITY_H_ */
+#endif				/* _KBASE_JS_AFFINITY_H_ */

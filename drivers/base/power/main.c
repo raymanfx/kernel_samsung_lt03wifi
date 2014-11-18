@@ -29,7 +29,6 @@
 #include <linux/async.h>
 #include <linux/suspend.h>
 #include <linux/timer.h>
-
 #include "../base.h"
 #include "power.h"
 
@@ -388,7 +387,9 @@ static int dpm_run_callback(pm_callback_t cb, struct device *dev,
 	calltime = initcall_debug_start(dev);
 
 	pm_dev_dbg(dev, state, info);
+
 	error = cb(dev);
+
 	suspend_report_result(cb, error);
 
 	initcall_debug_report(dev, calltime, error);
@@ -1054,7 +1055,7 @@ int dpm_suspend_end(pm_message_t state)
 
 	error = dpm_suspend_noirq(state);
 	if (error) {
-		dpm_resume_early(state);
+		dpm_resume_early(resume_event(state));
 		return error;
 	}
 

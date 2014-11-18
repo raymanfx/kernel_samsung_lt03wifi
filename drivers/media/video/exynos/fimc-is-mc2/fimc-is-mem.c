@@ -32,6 +32,7 @@
 #include <linux/videodev2_exynos_camera.h>
 #include <linux/vmalloc.h>
 #include <linux/interrupt.h>
+#include <plat/iovmm.h>
 
 #include "fimc-is-core.h"
 #include "fimc-is-param.h"
@@ -42,7 +43,8 @@
 static void *fimc_is_ion_init(struct platform_device *pdev)
 {
 	return vb2_ion_create_context(&pdev->dev, SZ_4K,
-					VB2ION_CTX_IOMMU | VB2ION_CTX_VMCONTIG);
+					VB2ION_CTX_IOMMU | VB2ION_CTX_VMCONTIG |
+					VB2ION_CTX_KVA_ONDEMAND);
 }
 
 static unsigned long plane_addr(struct vb2_buffer *vb, u32 plane_no)
@@ -70,7 +72,6 @@ const struct fimc_is_vb2 fimc_is_vb2_ion = {
 	.plane_kvaddr	= plane_kvaddr,
 	.resume		= vb2_ion_attach_iommu,
 	.suspend	= vb2_ion_detach_iommu,
-	.cache_flush	= vb2_ion_cache_flush,
 	.set_cacheable	= vb2_ion_set_cached,
 };
 
@@ -86,6 +87,7 @@ int fimc_is_mem_probe(struct fimc_is_mem *this,
 		ret = PTR_ERR(this->alloc_ctx);
 		goto p_err;
 	}
+	exynos_create_iovmm(&pdev->dev, 1, 3);
 
 p_err:
 	return ret;

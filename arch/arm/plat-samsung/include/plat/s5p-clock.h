@@ -26,6 +26,8 @@
 #define clk_fin_dpll clk_ext_xtal_mux
 #define clk_fin_vpll clk_ext_xtal_mux
 #define clk_fin_hpll clk_ext_xtal_mux
+#define clk_fin_kpll clk_ext_xtal_mux
+#define clk_fin_ipll clk_ext_xtal_mux
 
 extern struct clk clk_ext_xtal_mux;
 extern struct clk clk_xusbxti;
@@ -38,6 +40,12 @@ extern struct clk clk_fout_mpll;
 extern struct clk clk_fout_epll;
 extern struct clk clk_fout_dpll;
 extern struct clk clk_fout_vpll;
+extern struct clk clk_fout_kpll;
+#if defined(CONFIG_SOC_EXYNOS5420)
+extern struct clk clk_ipll;
+#else
+extern struct clk clk_fout_ipll;
+#endif
 extern struct clk clk_arm;
 extern struct clk clk_vpll;
 

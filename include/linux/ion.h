@@ -18,6 +18,8 @@
 #define _LINUX_ION_H
 
 #include <linux/types.h>
+#include <linux/dma-direction.h>
+#include <linux/dma-buf.h>
 
 struct ion_handle;
 /**
@@ -48,7 +50,7 @@ enum ion_heap_type {
 #define ION_NUM_HEAP_IDS		sizeof(unsigned int) * 8
 
 /**
- * heap flags - the lower 16 bits are used by core ion, the upper 16
+ * allocation flags - the lower 16 bits are used by core ion, the upper 16
  * bits are reserved for use by the heaps themselves.
  */
 #define ION_FLAG_CACHED 1		/* mappings of this buffer should be
@@ -58,6 +60,10 @@ enum ion_heap_type {
 #define ION_FLAG_CACHED_NEEDS_SYNC 2	/* mappings of this buffer will created
 					   at mmap time, if this is set
 					   caches must be managed manually */
+#define ION_FLAG_PRESERVE_KMAP 4	/* kernel address is generated when
+					   allocating a buffer
+					 */
+#define __ION_FLAG_CPUMAPPED_DO_NOT_USE__INTERNAL_USE_ONLY__ 8
 
 #ifdef __KERNEL__
 struct ion_device;
@@ -214,11 +220,19 @@ void *ion_map_kernel(struct ion_client *client, struct ion_handle *handle);
 void ion_unmap_kernel(struct ion_client *client, struct ion_handle *handle);
 
 /**
- * ion_share_dma_buf() - given an ion client, create a dma-buf fd
+ * ion_share_dma_buf() - share buffer as dma-buf
  * @client:	the client
  * @handle:	the handle
  */
-int ion_share_dma_buf(struct ion_client *client, struct ion_handle *handle);
+struct dma_buf *ion_share_dma_buf(struct ion_client *client,
+						struct ion_handle *handle);
+
+/**
+ * ion_share_dma_buf_fd() - given an ion client, create a dma-buf fd
+ * @client:	the client
+ * @handle:	the handle
+ */
+int ion_share_dma_buf_fd(struct ion_client *client, struct ion_handle *handle);
 
 /**
  * ion_import_dma_buf() - given an dma-buf fd from the ion exporter get handle
@@ -230,6 +244,35 @@ int ion_share_dma_buf(struct ion_client *client, struct ion_handle *handle);
  * another exporter is passed in this function will return ERR_PTR(-EINVAL)
  */
 struct ion_handle *ion_import_dma_buf(struct ion_client *client, int fd);
+
+struct device;
+/**
+ * ion_register_special_device() - register a special device
+ * @dev: ion_device
+ * @special: the special device that needs dma mapping kept until the buffer is
+ *           freed
+ *
+ * This registers a special device that needs dma address mapped by
+ * dma_buf_map_attachment() kept until the buffer is freed and prevents not to
+ * unmap the dma address when dma_buf_unmap_attachment().
+ * Returns -EBUSY if a device is already registered.
+ */
+int ion_register_special_device(struct ion_device *dev, struct device *special);
+
+/**
+ * ion_iovmm_map() - map buffer to the address space for the special device
+ * @attachment: attachment of dma_buf that is the result of dma_buf_attach()
+ * @offset: offset that starts mapping
+ * @size: size of the mapping
+ * @direction: whether the device read or write
+ * @id: id of the part of the address space
+
+ * return dma address if the buffer has a dma address.
+ * return minus error number if mapping fails.
+ */
+dma_addr_t ion_iovmm_map(struct dma_buf_attachment *attachment,
+		     off_t offset, size_t size,
+		     enum dma_data_direction direction, int id);
 
 #endif /* __KERNEL__ */
 
@@ -361,5 +404,11 @@ struct ion_custom_data {
  * passes appropriate userdata for that ioctl
  */
 #define ION_IOC_CUSTOM		_IOWR(ION_IOC_MAGIC, 6, struct ion_custom_data)
+
+#if defined(CONFIG_ION_EXYNOS_DEBUG_VERBOSE)
+#define ION_DBG(format, args...)	pr_info(format, ##args)
+#else
+#define ION_DBG(format, args...)	do { } while (0)
+#endif
 
 #endif /* _LINUX_ION_H */

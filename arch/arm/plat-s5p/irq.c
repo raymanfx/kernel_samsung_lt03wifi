@@ -32,5 +32,10 @@ void __init s5p_init_irq(u32 *vic, u32 num_vic)
 		vic_init(VA_VIC(irq), VIC_BASE(irq), vic[irq], 0);
 #endif
 
+/* _raw_spin_lock looping issue in booting after factory rest. */
+/* When CONFIG_HID_ZAGG is enabled. issue occurs */
+/* irq 68~72 is not used, block s3c_init_vic_timer_irq */
+#if !defined(CONFIG_N1A)
 	s3c_init_vic_timer_irq(5, IRQ_TIMER0);
+#endif
 }

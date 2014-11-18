@@ -270,14 +270,11 @@ int jpeg_dec_vidioc_g_fmt(struct file *file, void *priv,
 	pixm->field	= V4L2_FIELD_NONE;
 
 	if (f->type == V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE) {
-		pixm->pixelformat = dec_param->in_fmt;
 		pixm->num_planes = dec_param->in_plane;
 		pixm->width = dec_param->in_width;
 		pixm->height = dec_param->in_height;
 	} else if (f->type == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE) {
 		jpeg_get_frame_size(ctx->dev->reg_base, &width, &height);
-		pixm->pixelformat =
-			dec_param->out_fmt;
 		pixm->num_planes = dec_param->out_plane;
 		pixm->width = width;
 		pixm->height = height;
@@ -433,13 +430,6 @@ static int jpeg_dec_m2m_reqbufs(struct file *file, void *priv,
 			  struct v4l2_requestbuffers *reqbufs)
 {
 	struct jpeg_ctx *ctx = priv;
-	struct vb2_queue *vq;
-
-	vq = v4l2_m2m_get_vq(ctx->m2m_ctx, reqbufs->type);
-	if (vq->type == V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE)
-		ctx->dev->vb2->set_cacheable(ctx->dev->alloc_ctx, ctx->input_cacheable);
-	else if (vq->type == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE)
-		ctx->dev->vb2->set_cacheable(ctx->dev->alloc_ctx, ctx->output_cacheable);
 
 	return v4l2_m2m_reqbufs(file, ctx->m2m_ctx, reqbufs);
 }
@@ -491,30 +481,10 @@ static int jpeg_dec_vidioc_s_ctrl(struct file *file, void *priv,
 			struct v4l2_control *ctrl)
 {
 	struct jpeg_ctx *ctx = priv;
-/*
-*	0 : input/output noncacheable
-*	1 : input/output cacheable
-*	2 : input cacheable / output noncacheable
-*	3 : input noncacheable / output cacheable
-*/
 	switch (ctrl->id) {
 	case V4L2_CID_CACHEABLE:
-		if (ctrl->value == 0) {
-			ctx->input_cacheable = 0;
-			ctx->output_cacheable = 0;
-		} else if (ctrl->value == 1) {
-			ctx->input_cacheable = 1;
-			ctx->output_cacheable = 1;
-		} else if (ctrl->value == 2) {
-			ctx->input_cacheable = 1;
-			ctx->output_cacheable = 0;
-		} else if (ctrl->value == 3) {
-			ctx->input_cacheable = 0;
-			ctx->output_cacheable = 1;
-		} else {
-			ctx->input_cacheable = 0;
-			ctx->output_cacheable = 0;
-		}
+		v4l2_err(&ctx->dev->v4l2_dev,
+		"Invalid control : 'cacheable' set is not available\n");
 		break;
 	default:
 		v4l2_err(&ctx->dev->v4l2_dev, "Invalid control\n");

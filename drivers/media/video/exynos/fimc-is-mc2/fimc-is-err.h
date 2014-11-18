@@ -12,7 +12,7 @@
 #ifndef FIMC_IS_ERR_H
 #define FIMC_IS_ERR_H
 
-#define IS_ERROR_VER 012 /* IS ERROR VERSION 0.07 */
+#define IS_ERROR_VER 014 /* IS ERROR VERSION 0.14 */
 
 #define IS_ERROR_SUCCESS		0
 /* General 1 ~ 100 */
@@ -34,8 +34,12 @@
 #define IS_ERROR_ISP_FRAME_END_NOT_DONE	(IS_ERROR_ENTRY_MSG_THREAD_DOWN+1)
 #define IS_ERROR_DRC_FRAME_END_NOT_DONE	(IS_ERROR_ISP_FRAME_END_NOT_DONE+1)
 #define IS_ERROR_SCALERC_FRAME_END_NOT_DONE (IS_ERROR_DRC_FRAME_END_NOT_DONE+1)
+#if defined(CONFIG_SOC_EXYNOS5410)
 #define IS_ERROR_ODC_FRAME_END_NOT_DONE (IS_ERROR_SCALERC_FRAME_END_NOT_DONE+1)
 #define IS_ERROR_DIS_FRAME_END_NOT_DONE (IS_ERROR_ODC_FRAME_END_NOT_DONE+1)
+#else
+#define IS_ERROR_DIS_FRAME_END_NOT_DONE (IS_ERROR_SCALERC_FRAME_END_NOT_DONE+1)
+#endif
 #define IS_ERROR_TDNR_FRAME_END_NOT_DONE (IS_ERROR_DIS_FRAME_END_NOT_DONE+1)
 #define IS_ERROR_SCALERP_FRAME_END_NOT_DONE (IS_ERROR_TDNR_FRAME_END_NOT_DONE+1)
 #define IS_ERROR_WAIT_STREAM_OFF_NOT_DONE\
@@ -45,7 +49,9 @@
 #define IS_ERROR_ISP_MSG_FAIL	        (IS_ERROR_SENSOR_MSG_FAIL+1)
 #define IS_ERROR_DRC_MSG_FAIL	        (IS_ERROR_ISP_MSG_FAIL+1)
 #define IS_ERROR_SCALERC_MSG_FAIL		(IS_ERROR_DRC_MSG_FAIL+1)
+#if defined(CONFIG_SOC_EXYNOS5410)
 #define IS_ERROR_ODC_MSG_FAIL	        (IS_ERROR_SCALERC_MSG_FAIL+1)
+#endif
 #define IS_ERROR_DIS_MSG_FAIL	        (IS_ERROR_ODC_MSG_FAIL+1)
 #define IS_ERROR_TDNR_MSG_FAIL	        (IS_ERROR_DIS_MSG_FAIL+1)
 #define IS_ERROR_SCALERP_MSG_FAIL		(IS_ERROR_TDNR_MSG_FAIL+1)
@@ -87,13 +93,16 @@
 /*SCALERC(400~500)*/
 #define IS_ERROR_SCALERC_PWRDN_FAIL     400
 
+#if defined(CONFIG_SOC_EXYNOS5410)
 /*ODC(500~600)*/
 #define IS_ERROR_ODC_PWRDN_FAIL         500
+#endif
 
 /*DIS(600~700)*/
 #define IS_ERROR_DIS_PWRDN_FAIL         600
 
-/*TDNR(700~800)*/
+/*TDNR(700~800)
+*/
 #define IS_ERROR_TDNR_PWRDN_FAIL        700
 
 /*SCALERP(800~900)*/
@@ -249,6 +258,35 @@ enum error {
 	ERROR_SCALER_ROTATE			= 520,
 	ERROR_SCALER_FLIP			= 521,
 
+};
+
+enum ShotErrorType {
+	IS_SHOT_SUCCESS = 0,
+	/* Un-known state.(Normally under processing.) */
+	IS_SHOT_UNKNOWN,
+	/* Bad frame. Ndone is occured at provious group. */
+	IS_SHOT_BAD_FRAME,
+	/* Metadata is not valid. For example, sirc sdk's fd is not valid. */
+	IS_SHOT_CORRUPTED_FRAME,
+	/* Processing of previous group is not complete. */
+	IS_SHOT_EARLY_FRAME,
+	/* Shot is too late at OTF mode. */
+	IS_SHOT_LATE_FRAME,
+	/* Shot is coming when group is process-stop. */
+	IS_SHOT_GROUP_PROCESSSTOP,
+	/* Frame number is not allocated. */
+	IS_SHOT_INVALID_FRAMENUMBER,
+	/* Overflow is occred during processing. */
+	IS_SHOT_OVERFLOW,
+	/* Shot is time-out during processing.(Unknown reason.) */
+	IS_SHOT_SAME_FRAME_COUNT,
+	/* Shot is time-out during processing.(Unknown reason.) */
+	IS_SHOT_TIMEOUT,
+	/* Shot is droped at BufferEntry. */
+	IS_SHOT_DROP,
+	IS_SHOT_3AA_FRAME_END,
+	IS_SHOT_IP_CLOCK_OFF,
+	IS_SHOT_ENDPROC_DELAY
 };
 
 #define ENOBASE_IS		0x10000

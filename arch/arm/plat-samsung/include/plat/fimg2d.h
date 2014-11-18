@@ -13,12 +13,30 @@
 #ifndef __ASM_ARCH_FIMG2D_H
 #define __ASM_ARCH_FIMG2D_H __FILE__
 
+#define FIMG2D_SET_CLK_NAME		"aclk_333_g2d_dout"
+
+#if	defined(CONFIG_ARM_EXYNOS5410_BUS_DEVFREQ) ||	\
+	defined(CONFIG_ARM_EXYNOS5420_BUS_DEVFREQ)
+#define CONFIG_FIMG2D_USE_BUS_DEVFREQ
+#endif
+
+enum fimg2d_ip_version {
+	IP_VER_G2D_4P,
+	IP_VER_G2D_5G,
+	IP_VER_G2D_5A,
+	IP_VER_G2D_5AR,
+};
+
 struct fimg2d_platdata {
+	int ip_ver;
 	int hw_ver;
 	const char *parent_clkname;
 	const char *clkname;
 	const char *gate_clkname;
 	unsigned long clkrate;
+	int  cpu_min;
+	int  mif_min;
+	int  int_min;
 };
 
 extern void __init s5p_fimg2d_set_platdata(struct fimg2d_platdata *pd);

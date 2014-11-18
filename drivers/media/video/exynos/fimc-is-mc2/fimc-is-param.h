@@ -12,7 +12,7 @@
 #ifndef FIMC_IS_PARAMS_H
 #define FIMC_IS_PARAMS_H
 
-#define IS_REGION_VER 145  /* IS REGION VERSION 1.45 */
+#define IS_REGION_VER 150  /* IS REGION VERSION 1.50 */
 
 /* MACROs */
 #define IS_SET_PARAM_BIT(dev, num) \
@@ -843,7 +843,9 @@ enum is_entry {
 	ENTRY_ISP,
 	ENTRY_DRC,
 	ENTRY_SCALERC,
+#if defined(CONFIG_SOC_EXYNOS5410)
 	ENTRY_ODC,
+#endif
 	ENTRY_DIS,
 	ENTRY_TDNR,
 	ENTRY_SCALERP,
@@ -1120,6 +1122,11 @@ enum dma_input_order {
 	DMA_INPUT_ORDER_GR_BG	= 9
 };
 
+enum dma_input_MemoryWidthBits {
+	DMA_INPUT_MEMORY_WIDTH_16BIT	= 16,
+	DMA_INPUT_MEMORY_WIDTH_12BIT	= 12,
+};
+
 enum dma_input_error {
 	DMA_INPUT_ERROR_NO	= 0 /*  DMA input setting is done */
 };
@@ -1136,10 +1143,12 @@ enum otf_output_command {
 };
 
 enum orf_output_format {
-	OTF_OUTPUT_FORMAT_YUV444	= 1,
-	OTF_OUTPUT_FORMAT_YUV422	= 2,
-	OTF_OUTPUT_FORMAT_YUV420	= 3,
-	OTF_OUTPUT_FORMAT_RGB		= 4
+	OTF_OUTPUT_FORMAT_YUV444		= 1,
+	OTF_OUTPUT_FORMAT_YUV422		= 2,
+	OTF_OUTPUT_FORMAT_YUV420		= 3,
+	OTF_OUTPUT_FORMAT_RGB			= 4,
+	OTF_OUTPUT_FORMAT_YUV444_TRUNCATED	= 5,
+	OTF_OUTPUT_FORMAT_YUV422_TRUNCATED	= 6
 };
 
 enum otf_output_bitwidth {
@@ -1306,7 +1315,9 @@ enum isp_flash_command {
 	ISP_FLASH_COMMAND_FLASH_ON	= 4,
 	ISP_FLASH_COMMAND_CAPTURE	= 5,
 	ISP_FLASH_COMMAND_TRIGGER	= 6,
-	ISP_FLASH_COMMAND_CALIBRATION	= 7
+	ISP_FLASH_COMMAND_CALIBRATION	= 7,
+	ISP_FLASH_COMMAND_START		= 8,
+	ISP_FLASH_COMMAND_CANCLE	= 9
 };
 
 enum isp_flash_redeye {
@@ -1455,6 +1466,11 @@ enum isp_scene_command {
 	ISP_SCENE_CANDLE		= 14
 };
 
+enum ISP_BDSCommandEnum {
+	ISP_BDS_COMMAND_DISABLE		= 0,
+	ISP_BDS_COMMAND_ENABLE		= 1
+};
+
 /* --------------------------  Scaler  --------------------------------- */
 enum scaler_imageeffect_command {
 	SCALER_IMAGE_EFFECT_COMMNAD_DISABLE	= 0,
@@ -1507,6 +1523,11 @@ enum scaler_flip_command {
 
 enum scaler_flip_error {
 	SCALER_FLIP_ERROR_NO			= 0 /* flip setting is done */
+};
+
+enum scaler_output_yuv_range {
+	SCALER_OUTPUT_YUV_RANGE_FULL = 0,
+	SCALER_OUTPUT_YUV_RANGE_NARROW = 1,
 };
 
 /* --------------------------  3DNR  ----------------------------------- */
@@ -1596,9 +1617,14 @@ struct param_otf_input {
 	u32	crop_offset_y;
 	u32	crop_width;
 	u32	crop_height;
+	u32	uiBDSOutEnable;
+	u32	uiBDSOutWidth;
+	u32	uiBDSOutHeight;
 	u32	frametime_min;
 	u32	frametime_max;
-	u32	reserved[PARAMETER_MAX_MEMBER-13];
+	u32	binning_ratio_x;
+	u32	binning_ratio_y;
+	u32	reserved[PARAMETER_MAX_MEMBER-18];
 	u32	err;
 };
 
@@ -1620,12 +1646,18 @@ struct param_dma_input {
 	u32	uiDmaCropOffsetY;
 	u32	uiDmaCropWidth;
 	u32	uiDmaCropHeight;
+	u32	uiBDSOutEnable;
+	u32	uiBDSOutWidth;
+	u32	uiBDSOutHeight;
 	u32	uiUserMinFrameTime;
 	u32	uiUserMaxFrameTime;
 	u32	uiWideFrameGap;
 	u32	uiFrameGap;
 	u32	uiLineGap;
-	u32	uiReserved[PARAMETER_MAX_MEMBER-23];
+	u32	uiMemoryWidthBits;
+	u32	binning_ratio_x;
+	u32	binning_ratio_y;
+	u32	uiReserved[PARAMETER_MAX_MEMBER-29];
 	u32	err;
 };
 
@@ -1776,8 +1808,11 @@ struct param_isp_afc {
 };
 
 struct param_scaler_imageeffect {
-	u32	cmd;
-	u32	reserved[PARAMETER_MAX_MEMBER-2];
+	u32 	cmd;
+	u32	arbitrary_cb;
+	u32	arbitrary_cr;
+	u32	yuv_range;
+	u32	reserved[PARAMETER_MAX_MEMBER-5];
 	u32	err;
 };
 

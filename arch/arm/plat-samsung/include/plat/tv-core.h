@@ -14,10 +14,33 @@
 #ifndef __SAMSUNG_PLAT_TV_H
 #define __SAMSUNG_PLAT_TV_H __FILE__
 
+#include <plat/devs.h>
+
 /*
  * These functions are only for use with the core support code, such as
  * the CPU-specific initialization code.
  */
+
+enum tv_ip_version {
+	IP_VER_TV_5G_1,
+	IP_VER_TV_5A_0,
+	IP_VER_TV_5A_1,
+	IP_VER_TV_5S_0,
+};
+
+#define is_ip_ver_5g_1	(pdata->ip_ver == IP_VER_TV_5G_1)
+#define is_ip_ver_5a_0	(pdata->ip_ver == IP_VER_TV_5A_0)
+#define is_ip_ver_5a_1	(pdata->ip_ver == IP_VER_TV_5A_1)
+#define is_ip_ver_5s_0	(pdata->ip_ver == IP_VER_TV_5S_0)
+#define is_ip_ver_5g	(is_ip_ver_5g_1)
+#define is_ip_ver_5a	(is_ip_ver_5a_0 || is_ip_ver_5a_1)
+#define is_ip_ver_5s	(is_ip_ver_5s_0)
+#define is_ip_ver_5	(is_ip_ver_5g || is_ip_ver_5a || is_ip_ver_5s)
+
+struct s5p_tv_hw_ver {
+	enum tv_ip_version ver;
+	char name[20];
+};
 
 /* Re-define device name to differentiate the subsystem in various SoCs. */
 static inline void s5p_hdmi_setname(char *name)
@@ -48,7 +71,12 @@ struct s5p_platform_cec {
 };
 
 struct s5p_hdmi_platdata {
+	enum tv_ip_version ip_ver;
 	void (*hdmiphy_enable)(struct platform_device *pdev, int en);
+};
+
+struct s5p_mxr_platdata {
+	enum tv_ip_version ip_ver;
 };
 
 extern void s5p_hdmi_set_platdata(struct s5p_hdmi_platdata *pd);

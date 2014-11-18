@@ -176,7 +176,7 @@ int gen_pool_add_virt(struct gen_pool *pool, unsigned long virt, phys_addr_t phy
 	struct gen_pool_chunk *chunk;
 	int nbits = size >> pool->min_alloc_order;
 	int nbytes = sizeof(struct gen_pool_chunk) +
-				(nbits + BITS_PER_BYTE - 1) / BITS_PER_BYTE;
+				BITS_TO_LONGS(nbits) * sizeof(long);
 
 	chunk = kmalloc_node(nbytes, GFP_KERNEL | __GFP_ZERO, nid);
 	if (unlikely(chunk == NULL))
@@ -253,17 +253,12 @@ EXPORT_SYMBOL(gen_pool_destroy);
  * gen_pool_alloc - allocate special memory from the pool
  * @pool: pool to allocate from
  * @size: number of bytes to allocate from the pool
- * @alignment_order:	Order the allocated space should be
- *			aligned to (eg. 20 means allocated space
- *			must be aligned to 1MiB).
  *
  * Allocate the requested number of bytes from the specified pool.
  * Uses a first-fit algorithm. Can not be used in NMI handler on
  * architectures without NMI-safe cmpxchg implementation.
  */
-unsigned long __must_check
-gen_pool_alloc_aligned(struct gen_pool *pool, size_t size,
-		       unsigned alignment_order)
+unsigned long gen_pool_alloc(struct gen_pool *pool, size_t size)
 {
 	struct gen_pool_chunk *chunk;
 	unsigned long addr = 0;
@@ -273,9 +268,6 @@ gen_pool_alloc_aligned(struct gen_pool *pool, size_t size,
 #ifndef CONFIG_ARCH_HAVE_NMI_SAFE_CMPXCHG
 	BUG_ON(in_nmi());
 #endif
-
-	if (alignment_order < order)
-		alignment_order = order;
 
 	if (size == 0)
 		return 0;
@@ -289,8 +281,7 @@ gen_pool_alloc_aligned(struct gen_pool *pool, size_t size,
 		end_bit = (chunk->end_addr - chunk->start_addr) >> order;
 retry:
 		start_bit = bitmap_find_next_zero_area(chunk->bits, end_bit,
-				       start_bit, nbits,
-				       (1 << (alignment_order - order)) - 1);
+						       start_bit, nbits, 0);
 		if (start_bit >= end_bit)
 			continue;
 		remain = bitmap_set_ll(chunk->bits, start_bit, nbits);
@@ -309,7 +300,7 @@ retry:
 	rcu_read_unlock();
 	return addr;
 }
-EXPORT_SYMBOL(gen_pool_alloc_aligned);
+EXPORT_SYMBOL(gen_pool_alloc);
 
 /**
  * gen_pool_free - free allocated special memory back to the pool

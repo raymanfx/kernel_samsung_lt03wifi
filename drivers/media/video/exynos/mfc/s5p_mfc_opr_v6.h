@@ -15,7 +15,6 @@
 #ifndef S5P_MFC_OPR_V6_H_
 #define S5P_MFC_OPR_V6_H_
 
-#include "s5p_mfc_common.h"
 #include "s5p_mfc_mem.h"
 
 #define MFC_CTRL_MODE_CUSTOM	MFC_CTRL_MODE_SFR
@@ -30,15 +29,15 @@ int s5p_mfc_set_dec_stream_buffer(struct s5p_mfc_ctx *ctx,
 		unsigned int buf_size);
 
 void s5p_mfc_set_enc_frame_buffer(struct s5p_mfc_ctx *ctx,
-		dma_addr_t y_addr, dma_addr_t c_addr);
+		dma_addr_t addr[], int num_planes);
 int s5p_mfc_set_enc_stream_buffer(struct s5p_mfc_ctx *ctx,
 		dma_addr_t addr, unsigned int size);
 void s5p_mfc_get_enc_frame_buffer(struct s5p_mfc_ctx *ctx,
-		dma_addr_t *y_addr, dma_addr_t *c_addr);
+		dma_addr_t addr[], int num_planes);
 int s5p_mfc_set_enc_ref_buffer(struct s5p_mfc_ctx *mfc_ctx);
 
 int s5p_mfc_decode_one_frame(struct s5p_mfc_ctx *ctx, int last_frame);
-int s5p_mfc_encode_one_frame(struct s5p_mfc_ctx *mfc_ctx);
+int s5p_mfc_encode_one_frame(struct s5p_mfc_ctx *ctx, int last_frame);
 
 /* Memory allocation */
 int s5p_mfc_alloc_dec_temp_buffers(struct s5p_mfc_ctx *ctx);
@@ -85,6 +84,8 @@ void s5p_mfc_enc_calc_src_size(struct s5p_mfc_ctx *ctx);
 						S5P_FIMV_D_DISPLAY_FRAME_HEIGHT)
 #define s5p_mfc_get_dpb_count()		readl(dev->regs_base + \
 						S5P_FIMV_D_MIN_NUM_DPB)
+#define s5p_mfc_get_dis_count()		readl(dev->regs_base + \
+						S5P_FIMV_D_MIN_NUM_DIS)
 #define s5p_mfc_get_mv_count()		readl(dev->regs_base + \
 						S5P_FIMV_D_MIN_NUM_MV)
 #define s5p_mfc_get_inst_no()		readl(dev->regs_base + \
@@ -104,6 +105,26 @@ void s5p_mfc_enc_calc_src_size(struct s5p_mfc_ctx *ctx);
 #define s5p_mfc_get_mvc_disp_view_id()	(readl(dev->regs_base +		\
 					S5P_FIMV_D_MVC_VIEW_ID)		\
 					& S5P_FIMV_D_MVC_VIEW_ID_DISP_MASK)
+#define mfc_get_dec_used_flag()		readl(dev->regs_base + \
+						S5P_FIMV_D_USED_DPB_FLAG_LOWER)
+
+#define s5p_mfc_is_interlace_picture()	((readl(dev->regs_base + \
+					S5P_FIMV_D_DECODED_STATUS) & \
+					S5P_FIMV_DEC_STATUS_INTERLACE_MASK) == \
+					S5P_FIMV_DEC_STATUS_INTERLACE)
+
+#define s5p_mfc_get_dec_status()	(readl(dev->regs_base + \
+						S5P_FIMV_D_DECODED_STATUS) \
+						& S5P_FIMV_DECODED_FRAME_MASK)
+
+#define s5p_mfc_get_dec_frame()		(readl(dev->regs_base + \
+						S5P_FIMV_D_DECODED_FRAME_TYPE) \
+						& S5P_FIMV_DECODED_FRAME_MASK)
+#define mfc_get_disp_first_addr()	readl(dev->regs_base + \
+						S5P_FIMV_D_DISPLAY_FIRST_ADDR)
+#define mfc_get_dec_first_addr()	readl(dev->regs_base + \
+						S5P_FIMV_D_DECODED_FIRST_ADDR)
+#define mfc_get_info_stage_counter()	readl(dev->regs_base + 0xF088)
 
 #define mb_width(x_size)		((x_size + 15) / 16)
 #define mb_height(y_size)		((y_size + 15) / 16)
@@ -128,7 +149,7 @@ void s5p_mfc_enc_calc_src_size(struct s5p_mfc_ctx *ctx);
 #define ENC_H264_PROFILE_MAX		3
 #define ENC_H264_LEVEL_MAX		42
 #define ENC_MPEG4_VOP_TIME_RES_MAX	((1 << 16) - 1)
-#define FRAME_DELTA_H264_H263		1
+#define FRAME_DELTA_DEFAULT		1
 #define TIGHT_CBR_MAX			10
 
 /* Definitions for shared memory compatibility */
@@ -160,9 +181,7 @@ void s5p_mfc_enc_calc_src_size(struct s5p_mfc_ctx *ctx);
 #define DEC_V65_H264_SCRATCH_SIZE(x, y)				\
 		((x * 192) + 64)
 #define DEC_V65_MPEG4_SCRATCH_SIZE(x, y)			\
-		((x) * ((y) * 64 + 144) +			\
-		 ((2048 + 15) / 16 * (y) * 64) +		\
-		 ((2048 + 15) / 16 * 256 + 8320))
+		(((x) * 144) + ((y) * 8192) + 49216 + 1048576)
 #define DEC_V65_VC1_SCRATCH_SIZE(x, y)				\
 		(2096 * ((x) + (y) + 1))
 #define DEC_V65_MPEG2_SCRATCH_SIZE(x, y)	0
@@ -175,6 +194,13 @@ void s5p_mfc_enc_calc_src_size(struct s5p_mfc_ctx *ctx);
 		(((x) * 48) + (((x) + 1) / 2 * 128) + 144)
 #define ENC_V65_MPEG4_SCRATCH_SIZE(x, y)			\
 		(((x) * 32) + 16)
+#define ENC_V70_VP8_SCRATCH_SIZE(x, y)				\
+		(((x) * 48) + (((x) + 1) / 2 * 128) + 144 +	\
+		 8192 + (((x) * 16) * (((y) * 16) * 3 / 2) * 4))
+
+/* Additional scratch buffer size for MFC v7.x */
+#define DEC_V72_ADD_SIZE_0(x)					\
+		(((x) * 16 * 72 * 2) + 256)
 
 /* Encoder buffer size for common */
 #define ENC_TMV_SIZE(x, y)					\
@@ -187,6 +213,9 @@ void s5p_mfc_enc_calc_src_size(struct s5p_mfc_ctx *ctx);
 /* MV range is [16,256] for v6.1, [16,128] for v6.5 */
 #define ENC_V61_MV_RANGE		256
 #define ENC_V65_MV_RANGE		128
+
+#define NUM_MPEG4_LF_BUF		2
+
 void s5p_mfc_try_run(struct s5p_mfc_dev *dev);
 
 void s5p_mfc_cleanup_queue(struct list_head *lh, struct vb2_queue *vq);

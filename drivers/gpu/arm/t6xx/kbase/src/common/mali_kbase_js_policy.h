@@ -1,12 +1,15 @@
 /*
  *
- * (C) COPYRIGHT 2011-2012 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2011-2013 ARM Limited. All rights reserved.
  *
- * This program is free software and is provided to you under the terms of the GNU General Public License version 2
- * as published by the Free Software Foundation, and any use by you of this program is subject to the terms of such GNU licence.
+ * This program is free software and is provided to you under the terms of the
+ * GNU General Public License version 2 as published by the Free Software
+ * Foundation, and any use by you of this program is subject to the terms
+ * of such GNU licence.
  *
- * A copy of the licence is included with the program, and can also be obtained from Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ * A copy of the licence is included with the program, and can also be obtained
+ * from Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor,
+ * Boston, MA  02110-1301, USA.
  *
  */
 
@@ -157,12 +160,12 @@
  *   - kbasep_js_policy_runpool_add_ctx() on new_ctx
  *   - (all of this work is deferred on a work-queue to keep the IRQ handler quick)
  * - If there is space in the completed job slots' HEAD/NEXT registers, run the next job:
- *  - kbasep_js_policy_dequeue_job_irq() <em>in the context of the irq
+ *  - kbasep_js_policy_dequeue_job() <em>in the context of the irq
  * handler</em> with core_req set to that of the completing slot
  *  - if this returned MALI_TRUE, submit the job to the completed slot.
- *  - This is repeated until kbasep_js_policy_dequeue_job_irq() returns
+ *  - This is repeated until kbasep_js_policy_dequeue_job() returns
  * MALI_FALSE, or the job slot has a job queued on both the HEAD and NEXT registers.
- *  - If kbasep_js_policy_dequeue_job_irq() returned false, submit some work to
+ *  - If kbasep_js_policy_dequeue_job() returned false, submit some work to
  * the work-queue to retry from outside of IRQ context (calling
  * kbasep_js_policy_dequeue_job() from a work-queue).
  *
@@ -220,25 +223,6 @@
  * - kbasep_js_policy_should_remove_ctx():
  *  - This is usually just a comparison of the stored time value against some
  * maximum value.
- * - kbasep_js_policy_dequeue_job_irq():
- *  - For very fast operation, it can keep a very small buffer of 1 element per
- * job-slot that allows the job at the head of the runpool for each job-slot
- * to be retreived very quickly (O(1) time). This is complicated by high
- * priority jobs that may 'jump' the queue, but could be eased by having a
- * second buffer for high priority jobs. This assumes the requirement is only to
- * run any high priority job quickly, not to run the highest high priority job
- * quickly.
- *  - Of course, if a job slot completes two jobs in quick succession, then
- * kbasep_js_policy_dequeue_job_irq() can return MALI_FALSE on the second call
- * (because the small quick-access buffer is already exhausted)
- *  - The quick-access buffer must be refilled by the other Policy Job
- * Management APIs that are called ourside of IRQ context.
- *  - This scheme guarantees that we keep every jobslot busy with at least one
- * job - good utilization.
- *  - As a side effect, processes that try to submit too many quick-running
- * jobs (to increase IRQ rate to cause a DoS attack ) will be limited to the
- * rate at which the kernel work-queue can be serivced. This can be seen as a
- * benefit.
  *
  * @note all deferred work can be wrapped up into one call - we usually need to
  * indicate that a job/bag is done outside of IRQ context anyway.
@@ -301,7 +285,7 @@
  * - We could just wait until the IRQ handler fires, but for certain types of
  * jobs this can take comparatively a long time to complete, e.g. GLES FS jobs
  * generally take much longer to run that GLES CS jobs, which are vertex shader
- * jobs. Even worse are NSS jobs, which may run for seconds/minutes.
+ * jobs.
  * - Therefore, when a new job appears in the ctx, we must check the job-slots
  * to see if they're free, and run the jobs as before.
  *
@@ -405,14 +389,12 @@ union kbasep_js_policy;
 /**
  * @brief Initialize the Job Scheduler Policy
  */
-mali_error kbasep_js_policy_init( kbase_device *kbdev );
+mali_error kbasep_js_policy_init(kbase_device *kbdev);
 
 /**
  * @brief Terminate the Job Scheduler Policy
  */
-void kbasep_js_policy_term( kbasep_js_policy *js_policy );
-
-
+void kbasep_js_policy_term(kbasep_js_policy *js_policy);
 
 /**
  * @addtogroup kbase_js_policy_ctx Job Scheduler Policy, Context Management API
@@ -421,7 +403,6 @@ void kbasep_js_policy_term( kbasep_js_policy *js_policy );
  * <b>Refer to @ref page_kbase_js_policy for an overview and detailed operation of
  * the Job Scheduler Policy and its use from the Job Scheduler Core.</b>
  */
-
 
 /**
  * @brief Job Scheduler Policy Ctx Info structure
@@ -444,13 +425,13 @@ union kbasep_js_policy_ctx_info;
  * This effectively initializes the kbasep_js_policy_ctx_info structure within
  * the kbase_context (itself located within the kctx->jctx.sched_info structure).
  */
-mali_error kbasep_js_policy_init_ctx( kbase_device *kbdev, kbase_context *kctx );
+mali_error kbasep_js_policy_init_ctx(kbase_device *kbdev, kbase_context *kctx);
 
 /**
  * @brief Terminate resources associated with using a ctx in the Job Scheduler
  * Policy.
  */
-void kbasep_js_policy_term_ctx( kbasep_js_policy *js_policy, kbase_context *kctx );
+void kbasep_js_policy_term_ctx(kbasep_js_policy *js_policy, kbase_context *kctx);
 
 /**
  * @brief Enqueue a context onto the Job Scheduler Policy Queue
@@ -466,7 +447,7 @@ void kbasep_js_policy_term_ctx( kbasep_js_policy *js_policy, kbase_context *kctx
  * The caller will be holding kbasep_js_kctx_info::ctx::jsctx_mutex.
  * The caller will be holding kbasep_js_device_data::queue_mutex.
  */
-void kbasep_js_policy_enqueue_ctx( kbasep_js_policy *js_policy, kbase_context *kctx );
+void kbasep_js_policy_enqueue_ctx(kbasep_js_policy *js_policy, kbase_context *kctx);
 
 /**
  * @brief Dequeue a context from the Head of the Job Scheduler Policy Queue
@@ -477,7 +458,7 @@ void kbasep_js_policy_enqueue_ctx( kbasep_js_policy *js_policy, kbase_context *k
  * the kctx dequeued.
  * @return MALI_FALSE if no contexts were available.
  */
-mali_bool kbasep_js_policy_dequeue_head_ctx( kbasep_js_policy *js_policy, kbase_context **kctx_ptr );
+mali_bool kbasep_js_policy_dequeue_head_ctx(kbasep_js_policy *js_policy, kbase_context ** const kctx_ptr);
 
 /**
  * @brief Evict a context from the Job Scheduler Policy Queue
@@ -499,13 +480,11 @@ mali_bool kbasep_js_policy_dequeue_head_ctx( kbasep_js_policy *js_policy, kbase_
  * @return MALI_TRUE if the context was evicted from the Policy Queue
  * @return MALI_FALSE if the context was not found in the Policy Queue
  */
-mali_bool kbasep_js_policy_try_evict_ctx( kbasep_js_policy *js_policy, kbase_context *kctx );
+mali_bool kbasep_js_policy_try_evict_ctx(kbasep_js_policy *js_policy, kbase_context *kctx);
 
 /**
- * @brief Remove all jobs belonging to a non-queued, non-running context.
- *
- * This must call kbase_jd_cancel() on each job belonging to the context, which
- * causes all necessary job cleanup actions to occur on a workqueue.
+ * @brief Call a function on all jobs belonging to a non-queued, non-running
+ * context, optionally detaching the jobs from the context as it goes.
  *
  * At the time of the call, the context is guarenteed to be not-currently
  * scheduled on the Run Pool (is_scheduled == MALI_FALSE), and not present in
@@ -518,12 +497,18 @@ mali_bool kbasep_js_policy_try_evict_ctx( kbasep_js_policy *js_policy, kbase_con
  * - kbasep_js_policy_runpool_add_ctx()
  * - kbasep_js_policy_enqueue_ctx()
  *
- * This is only called as part of destroying a kbase_context.
+ * Due to the locks that might be held at the time of the call, the callback
+ * may need to defer work on a workqueue to complete its actions (e.g. when
+ * cancelling jobs)
+ *
+ * \a detach_jobs must only be set when cancelling jobs (which occurs as part
+ * of context destruction).
  *
  * The locking conditions on the caller are as follows:
  * - it will be holding kbasep_js_kctx_info::ctx::jsctx_mutex.
  */
-void kbasep_js_policy_kill_all_ctx_jobs( kbasep_js_policy *js_policy, kbase_context *kctx );
+void kbasep_js_policy_foreach_ctx_job(kbasep_js_policy *js_policy, kbase_context *kctx,
+	kbasep_js_policy_ctx_job_cb callback, mali_bool detach_jobs);
 
 /**
  * @brief Add a context to the Job Scheduler Policy's Run Pool
@@ -550,7 +535,7 @@ void kbasep_js_policy_kill_all_ctx_jobs( kbasep_js_policy *js_policy, kbase_cont
  *
  * Due to a spinlock being held, this function must not call any APIs that sleep.
  */
-void kbasep_js_policy_runpool_add_ctx( kbasep_js_policy *js_policy, kbase_context *kctx );
+void kbasep_js_policy_runpool_add_ctx(kbasep_js_policy *js_policy, kbase_context *kctx);
 
 /**
  * @brief Remove a context from the Job Scheduler Policy's Run Pool
@@ -567,7 +552,7 @@ void kbasep_js_policy_runpool_add_ctx( kbasep_js_policy *js_policy, kbase_contex
  *
  * Due to a spinlock being held, this function must not call any APIs that sleep.
  */
-void kbasep_js_policy_runpool_remove_ctx( kbasep_js_policy *js_policy, kbase_context *kctx );
+void kbasep_js_policy_runpool_remove_ctx(kbasep_js_policy *js_policy, kbase_context *kctx);
 
 /**
  * @brief Indicate whether a context should be removed from the Run Pool
@@ -577,7 +562,24 @@ void kbasep_js_policy_runpool_remove_ctx( kbasep_js_policy *js_policy, kbase_con
  *
  * @note This API is called from IRQ context.
  */
-mali_bool kbasep_js_policy_should_remove_ctx( kbasep_js_policy *js_policy, kbase_context *kctx );
+mali_bool kbasep_js_policy_should_remove_ctx(kbasep_js_policy *js_policy, kbase_context *kctx);
+
+/**
+ * @brief Synchronize with any timers acting upon the runpool
+ *
+ * The policy should check whether any timers it owns should be running. If
+ * they should not, the policy must cancel such timers and ensure they are not
+ * re-run by the time this function finishes.
+ *
+ * In particular, the timers must not be running when there are no more contexts
+ * on the runpool, because the GPU could be powered off soon after this call.
+ *
+ * The locking conditions on the caller are as follows:
+ * - it will be holding kbasep_js_kctx_info::ctx::jsctx_mutex.
+ * - it will be holding kbasep_js_device_data::runpool_mutex.
+ */
+void kbasep_js_policy_runpool_timers_sync(kbasep_js_policy *js_policy);
+
 
 /**
  * @brief Indicate whether a new context has an higher priority than the current context.
@@ -594,10 +596,9 @@ mali_bool kbasep_js_policy_should_remove_ctx( kbasep_js_policy *js_policy, kbase
  * cannot be held). Therefore, this function should only be seen as a heuristic
  * guide as to whether \a new_ctx is higher priority than \a current_ctx
  */
-mali_bool kbasep_js_policy_ctx_has_priority( kbasep_js_policy *js_policy, kbase_context *current_ctx, kbase_context *new_ctx );
+mali_bool kbasep_js_policy_ctx_has_priority(kbasep_js_policy *js_policy, kbase_context *current_ctx, kbase_context *new_ctx);
 
-
-/** @} */ /* end group kbase_js_policy_ctx */
+	  /** @} *//* end group kbase_js_policy_ctx */
 
 /**
  * @addtogroup kbase_js_policy_job Job Scheduler Policy, Job Chain Management API
@@ -606,8 +607,6 @@ mali_bool kbasep_js_policy_ctx_has_priority( kbasep_js_policy *js_policy, kbase_
  * <b>Refer to @ref page_kbase_js_policy for an overview and detailed operation of
  * the Job Scheduler Policy and its use from the Job Scheduler Core.</b>
  */
-
-
 
 /**
  * @brief Job Scheduler Policy Job Info structure
@@ -646,7 +645,7 @@ union kbasep_js_policy_job_info;
  *
  * @return MALI_ERROR_NONE if initialization was correct.
  */
-mali_error kbasep_js_policy_init_job( const kbasep_js_policy *js_policy, const kbase_context *kctx, kbase_jd_atom *katom );
+mali_error kbasep_js_policy_init_job(const kbasep_js_policy *js_policy, const kbase_context *kctx, kbase_jd_atom *katom);
 
 /**
  * @brief Register context/policy-wide information for a job on the Job Scheduler Policy.
@@ -667,7 +666,7 @@ mali_error kbasep_js_policy_init_job( const kbasep_js_policy *js_policy, const k
  * The caller has the following conditions on locking:
  * - kbasep_js_kctx_info::ctx::jsctx_mutex will be held.
  */
-void kbasep_js_policy_register_job( kbasep_js_policy *js_policy, kbase_context *kctx, kbase_jd_atom *katom );
+void kbasep_js_policy_register_job(kbasep_js_policy *js_policy, kbase_context *kctx, kbase_jd_atom *katom);
 
 /**
  * @brief De-register context/policy-wide information for a on the Job Scheduler Policy.
@@ -679,8 +678,7 @@ void kbasep_js_policy_register_job( kbasep_js_policy *js_policy, kbase_context *
  * The caller has the following conditions on locking:
  * - kbasep_js_kctx_info::ctx::jsctx_mutex will be held.
  */
-void kbasep_js_policy_deregister_job( kbasep_js_policy *js_policy, kbase_context *kctx, kbase_jd_atom *katom );
-
+void kbasep_js_policy_deregister_job(kbasep_js_policy *js_policy, kbase_context *kctx, kbase_jd_atom *katom);
 
 /**
  * @brief Dequeue a Job for a job slot from the Job Scheduler Policy Run Pool
@@ -704,56 +702,12 @@ void kbasep_js_policy_deregister_job( kbasep_js_policy *js_policy, kbase_context
  *
  * @note base_jd_core_req is currently a u8 - beware of type conversion.
  *
- * @note This API is not called from IRQ context outside of the policy
- * itself, and so need not operate in O(1) time. Refer to
- * kbasep_js_policy_dequeue_job_irq() for dequeuing from IRQ context.
- *
- * As a result of kbasep_js_policy_dequeue_job_irq(), this function might need to
- * carry out work to maintain its internal queues both before and after a job
- * is dequeued.
- *
  * The caller has the following conditions on locking:
  * - kbasep_js_device_data::runpool_lock::irq will be held.
  * - kbasep_js_device_data::runpool_mutex will be held.
  * - kbasep_js_kctx_info::ctx::jsctx_mutex. will be held
  */
-mali_bool kbasep_js_policy_dequeue_job( kbase_device *kbdev,
-										int job_slot_idx,
-										kbase_jd_atom **katom_ptr );
-
-/**
- * @brief IRQ Context Fast equivalent of kbasep_js_policy_dequeue_job()
- *
- * This is a 'fast' variant of kbasep_js_policy_dequeue_job() that will be
- * called from IRQ context.
- *
- * It is recommended that this is coded to be O(1) and must be capable of
- * returning at least one job per job-slot to IRQ context. If IRQs occur in
- * quick succession without any work done in non-irq context, then this
- * function is allowed to return MALI_FALSE even if there are jobs available
- * that satisfy the requirements.
- *
- * This relaxation of correct dequeuing allows O(1) execution with bounded
- * memory requirements. For example, in addition to the ctxs' job queues the run
- * pool can have a buffer that can contain a single job for 'quick access' per job
- * slot, but this buffer is only refilled from the job queue outside of IRQ
- * context.
- *
- * Therefore, all other Job Scheduled Policy Job Management APIs  can be
- * implemented to refill this buffer/maintain the Run Pool's job queues outside
- * of IRQ context.
- *
- * The caller has the following conditions on locking:
- * - kbasep_js_device_data::runpool_irq::lock will be held.
- *
- * @note The caller \em might be holding one of the
- * kbasep_js_kctx_info::ctx::jsctx_mutex locks, if this code is called from
- * outside of IRQ context.
- */
-mali_bool kbasep_js_policy_dequeue_job_irq( kbase_device *kbdev,
-											int job_slot_idx,
-											kbase_jd_atom **katom_ptr );
-
+mali_bool kbasep_js_policy_dequeue_job(kbase_device *kbdev, int job_slot_idx, kbase_jd_atom ** const katom_ptr);
 
 /**
  * @brief Requeue a Job back into the the Job Scheduler Policy Run Pool
@@ -762,17 +716,12 @@ mali_bool kbasep_js_policy_dequeue_job_irq( kbase_device *kbdev,
  * a job into the Run Pool that was previously dequeued (running). It notifies
  * the policy that the job should be run again at some point later.
  *
- * As a result of kbasep_js_policy_dequeue_job_irq(), this function might need to
- * carry out work to maintain its internal queues both before and after a job
- * is requeued.
- *
  * The caller has the following conditions on locking:
  * - kbasep_js_device_data::runpool_irq::lock (a spinlock) will be held.
  * - kbasep_js_device_data::runpool_mutex will be held.
  * - kbasep_js_kctx_info::ctx::jsctx_mutex will be held.
  */
-void kbasep_js_policy_enqueue_job( kbasep_js_policy *js_policy, kbase_jd_atom *katom );
-
+void kbasep_js_policy_enqueue_job(kbasep_js_policy *js_policy, kbase_jd_atom *katom);
 
 /**
  * @brief Log the result of a job: the time spent on a job/context, and whether
@@ -805,14 +754,12 @@ void kbasep_js_policy_enqueue_job( kbasep_js_policy *js_policy, kbase_jd_atom *k
  * @param katom         job dispatch atom
  * @param time_spent_us the time spent by the job, in microseconds (10^-6 seconds).
  */
-void kbasep_js_policy_log_job_result( kbasep_js_policy *js_policy, kbase_jd_atom *katom, u64 time_spent_us );
+void kbasep_js_policy_log_job_result(kbasep_js_policy *js_policy, kbase_jd_atom *katom, u64 time_spent_us);
 
-/** @} */ /* end group kbase_js_policy_job */
+	  /** @} *//* end group kbase_js_policy_job */
 
+	  /** @} *//* end group kbase_js_policy */
+	  /** @} *//* end group base_kbase_api */
+	  /** @} *//* end group base_api */
 
-
-/** @} */ /* end group kbase_js_policy */
-/** @} */ /* end group base_kbase_api */
-/** @} */ /* end group base_api */
-
-#endif /* _KBASE_JS_POLICY_H_ */
+#endif				/* _KBASE_JS_POLICY_H_ */

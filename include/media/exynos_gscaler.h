@@ -20,12 +20,21 @@
  *
  * @isp_info: properties of camera sensor required for host interface setup
  */
+
+enum gsc_ip_version {
+	IP_VER_GSC_5G,
+	IP_VER_GSC_5A,
+};
+
 struct exynos_platform_gscaler {
 	struct exynos_isp_info *isp_info[MAX_CAMIF_CLIENTS];
 	u32 active_cam_index;
 	u32 num_clients;
 	u32 cam_preview:1;
 	u32 cam_camcording:1;
+	u32 ip_ver;
+	u32 mif_min;
+	u32 int_min;
 };
 
 extern struct exynos_platform_gscaler exynos_gsc0_default_data;
@@ -39,4 +48,6 @@ extern struct exynos_platform_gscaler exynos_gsc3_default_data;
   * @ name: pdev name for gscaler
   */
 void __init exynos5_gsc_set_pdev_name(int id, char *name);
+void __init exynos5_gsc_set_ip_ver(enum gsc_ip_version ver);
+void __init exynos5_gsc_set_pm_qos_val(u32 mif_min, u32 int_min);
 #endif /* EXYNOS_GSCALER_H_ */
