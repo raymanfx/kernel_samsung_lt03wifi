@@ -34,6 +34,9 @@
 #define SECMEM_DEV_NAME	"s5p-smem"
 struct miscdevice secmem;
 struct secmem_crypto_driver_ftn *crypto_driver;
+#if defined(CONFIG_ION)
+extern struct ion_device *ion_exynos;
+#endif
 #if defined(CONFIG_ARM_EXYNOS5410_BUS_DEVFREQ)
 static struct pm_qos_request exynos5_secmem_mif_qos;
 #endif
