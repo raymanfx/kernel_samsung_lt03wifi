@@ -13,6 +13,7 @@
 #include <linux/ion.h>
 #include <linux/exynos_ion.h>
 #include <linux/slab.h>
+#include <mach/exynos-ion.h>
 
 struct ion_platform_heap heaps[] = {
 	{	.type = ION_HEAP_TYPE_SYSTEM,
