@@ -28,6 +28,8 @@
 #include <linux/random.h>
 #include <linux/wakelock.h>
 
+#include <trace/events/mmc.h>
+
 #include <linux/mmc/card.h>
 #include <linux/mmc/host.h>
 #include <linux/mmc/mmc.h>
@@ -169,6 +171,7 @@ void mmc_request_done(struct mmc_host *host, struct mmc_request *mrq)
 			pr_debug("%s:     %d bytes transferred: %d\n",
 				mmc_hostname(host),
 				mrq->data->bytes_xfered, mrq->data->error);
+			trace_mmc_blk_rw_end(cmd->opcode, cmd->arg, mrq->data);
 		}
 
 		if (mrq->stop) {
@@ -1781,6 +1784,8 @@ static int mmc_do_erase(struct mmc_card *card, unsigned int from,
 
 	mmc_add_trace(__MMC_TA_REQ_DONE, card->host->mqrq_cur);
 out:
+
+	trace_mmc_blk_erase_end(arg, fr, nr);
 	return err;
 }
 

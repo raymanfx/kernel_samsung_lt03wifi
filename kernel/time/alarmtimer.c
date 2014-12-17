@@ -182,13 +182,13 @@ static enum hrtimer_restart alarmtimer_fired(struct hrtimer *timer)
 
 	spin_lock_irqsave(&base->lock, flags);
 	alarmtimer_dequeue(base, alarm);
-		spin_unlock_irqrestore(&base->lock, flags);
+	spin_unlock_irqrestore(&base->lock, flags);
 
-		if (alarm->function)
+	if (alarm->function)
 		restart = alarm->function(alarm, base->gettime());
 
 	spin_lock_irqsave(&base->lock, flags);
-		if (restart != ALARMTIMER_NORESTART) {
+	if (restart != ALARMTIMER_NORESTART) {
 		hrtimer_set_expires(&alarm->timer, alarm->node.expires);
 		alarmtimer_enqueue(base, alarm);
 		ret = HRTIMER_RESTART;
@@ -311,7 +311,7 @@ void alarm_init(struct alarm *alarm, enum alarmtimer_type type,
 }
 
 /**
- * alarm_start - Sets an alarm to fire
+ * alarm_start - Sets an absolute alarm to fire
  * @alarm: ptr to alarm to set
  * @start: time to run the alarm
  */
@@ -326,6 +326,32 @@ int alarm_start(struct alarm *alarm, ktime_t start)
 	alarmtimer_enqueue(base, alarm);
 	ret = hrtimer_start(&alarm->timer, alarm->node.expires,
 				HRTIMER_MODE_ABS);
+	spin_unlock_irqrestore(&base->lock, flags);
+	return ret;
+}
+
+/**
+ * alarm_start_relative - Sets a relative alarm to fire
+ * @alarm: ptr to alarm to set
+ * @start: time relative to now to run the alarm
+ */
+int alarm_start_relative(struct alarm *alarm, ktime_t start)
+{
+	struct alarm_base *base = &alarm_bases[alarm->type];
+
+	start = ktime_add(start, base->gettime());
+	return alarm_start(alarm, start);
+}
+
+void alarm_restart(struct alarm *alarm)
+{
+	struct alarm_base *base = &alarm_bases[alarm->type];
+	unsigned long flags;
+
+	spin_lock_irqsave(&base->lock, flags);
+	hrtimer_set_expires(&alarm->timer, alarm->node.expires);
+	hrtimer_restart(&alarm->timer);
+	alarmtimer_enqueue(base, alarm);
 	spin_unlock_irqrestore(&base->lock, flags);
 	return ret;
 }
@@ -400,6 +426,12 @@ u64 alarm_forward(struct alarm *alarm, ktime_t now, ktime_t interval)
 	return overrun;
 }
 
+u64 alarm_forward_now(struct alarm *alarm, ktime_t interval)
+{
+	struct alarm_base *base = &alarm_bases[alarm->type];
+
+	return alarm_forward(alarm, base->gettime(), interval);
+}
 
 
 

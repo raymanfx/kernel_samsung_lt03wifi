@@ -424,8 +424,8 @@ static int android_oom_handler(struct notifier_block *nb,
 		selected = p;
 		selected_tasksize = tasksize;
 		selected_oom_score_adj = oom_score_adj;
-		lowmem_print(2, "oom: select %d (%s), adj %d, size %d, to kill\n",
-			     p->pid, p->comm, oom_score_adj, tasksize);
+		lowmem_print(2, "select '%s' (%d), adj %d, size %d, to kill\n",
+			     p->comm, p->pid, oom_score_adj, tasksize);
 #endif
 	}
 #ifdef MULTIPLE_OOM_KILLER
@@ -447,9 +447,19 @@ static int android_oom_handler(struct notifier_block *nb,
 	}
 #else
 	if (selected) {
-		lowmem_print(1, "oom: send sigkill to %d (%s), adj %d, size %d\n",
-			     selected->pid, selected->comm,
-			     selected_oom_score_adj, selected_tasksize);
+		lowmem_print(1, "Killing '%s' (%d), adj %d,\n" \
+				"   to free %ldkB on behalf of '%s' (%d) because\n" \
+				"   cache %ldkB is below limit %ldkB for oom_score_adj %d\n" \
+				"   Free memory is %ldkB above reserved\n",
+			     selected->comm, selected->pid,
+			     selected_oom_score_adj,
+			     selected_tasksize * (long)(PAGE_SIZE / 1024),
+			     current->comm, current->pid,
+			     other_file * (long)(PAGE_SIZE / 1024),
+			     minfree * (long)(PAGE_SIZE / 1024),
+			     min_score_adj,
+			     other_free * (long)(PAGE_SIZE / 1024));
+		lowmem_deathpending_timeout = jiffies + HZ;
 		send_sig(SIGKILL, selected, 0);
 		set_tsk_thread_flag(selected, TIF_MEMDIE);
 		rem -= selected_tasksize;
