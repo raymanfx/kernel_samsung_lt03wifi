@@ -481,6 +481,9 @@ struct mmc_async_req *mmc_start_req(struct mmc_host *host,
 	}
 
 	if (!err && areq) {
+		trace_mmc_blk_rw_start(areq->mrq->cmd->opcode,
+				areq->mrq->cmd->arg,
+				areq->mrq->data);
 		mmc_add_trace(__MMC_TA_MMC_ISSUE, host->mqrq_cur);
 		start_err = __mmc_start_data_req(host, areq->mrq);
 		mmc_add_trace(__MMC_TA_MMC_DONE, host->mqrq_cur);
@@ -1675,8 +1678,13 @@ static int mmc_do_erase(struct mmc_card *card, unsigned int from,
 {
 	struct mmc_command cmd = {0};
 	unsigned int qty = 0;
+	unsigned int fr, nr;
 	unsigned long timeout = 0;
 	int err;
+
+	fr = from;
+	nr = to - from + 1;
+	trace_mmc_blk_erase_start(arg, fr, nr);
 
 	mmc_add_trace(__MMC_TA_PRE_DONE, card->host->mqrq_cur);
 	/*

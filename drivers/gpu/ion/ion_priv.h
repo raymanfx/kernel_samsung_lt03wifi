@@ -183,10 +183,7 @@ struct ion_heap {
  *
  * indicates whether this ion buffer is cached
  */
-static inline bool ion_buffer_cached(struct ion_buffer *buffer)
-{
-	return !!(buffer->flags & ION_FLAG_CACHED);
-}
+bool ion_buffer_cached(struct ion_buffer *buffer);
 
 /**
  * ion_buffer_fault_user_mappings - fault in user mappings of this buffer
@@ -195,11 +192,7 @@ static inline bool ion_buffer_cached(struct ion_buffer *buffer)
  * indicates whether userspace mappings of this buffer will be faulted
  * in, this can affect how buffers are allocated from the heap.
  */
-static inline bool ion_buffer_fault_user_mappings(struct ion_buffer *buffer)
-{
-	return (buffer->flags & ION_FLAG_CACHED) &&
-		!(buffer->flags & ION_FLAG_CACHED_NEEDS_SYNC);
-}
+bool ion_buffer_fault_user_mappings(struct ion_buffer *buffer);
 
 /**
  * ion_device_create - allocates and returns an ion device

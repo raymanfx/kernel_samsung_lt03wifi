@@ -139,7 +139,7 @@ static void ion_buffer_set_cpumapped(struct ion_buffer *buffer)
 	buffer->flags |= ION_FLAG_CPUMAPPED;
 }
 
- bool ion_buffer_fault_user_mappings(struct ion_buffer *buffer)
+bool ion_buffer_fault_user_mappings(struct ion_buffer *buffer)
 {
 	return ((buffer->flags & ION_FLAG_CACHED) &&
 	!(buffer->flags & ION_FLAG_CACHED_NEEDS_SYNC));
@@ -467,15 +467,10 @@ static struct ion_handle *ion_handle_get_by_id(struct ion_client *client,
 	return handle ? handle : ERR_PTR(-EINVAL);
 }
 
-static struct ion_handle *ion_handle_get(struct ion_client *client, int id)
-{
-	WARN_ON(!mutex_is_locked(&client->lock));
-	return idr_find(&client->idr, id);
-}
-
 static bool ion_handle_validate(struct ion_client *client, struct ion_handle *handle)
 {
-	return (ion_uhandle_get(client, handle->id) == handle);
+	WARN_ON(!mutex_is_locked(&client->lock));
+	return (idr_find(&client->idr, handle->id) == handle);
 }
 
 static int ion_handle_add(struct ion_client *client, struct ion_handle *handle)
@@ -594,15 +589,19 @@ struct ion_handle *ion_alloc(struct ion_client *client, size_t len,
 	 */
 	ion_buffer_put(buffer);
 
-	if (IS_ERR(handle))
-		return handle;
+	if (IS_ERR(handle)) {
+		mutex_lock(&client->lock);
+		ret = ion_handle_add(client, handle);
+		mutex_unlock(&client->lock);
+	}
 
-	mutex_lock(&client->lock);
-	ret = ion_handle_add(client, handle);
-	mutex_unlock(&client->lock);
-	if (ret) {
-		ion_handle_put(handle);
-		handle = ERR_PTR(ret);
+out:
+	if (IS_ERR(handle)) {
+		pr_err("%s failed!\n", __func__);
+		pr_err(" len %#x align %d heap_id_mask %#x flags %#x\n",
+					len, align, heap_id_mask, flags);
+	if (PTR_ERR(handle) == -ENOMEM)
+		ion_showmem(dev);
 	}
 
 	return handle;
@@ -935,6 +934,7 @@ static void ion_buffer_sync_for_device(struct ion_buffer *buffer,
 				       struct device *dev,
 				       enum dma_data_direction dir)
 {
+	struct scatterlist *sg;
 	struct ion_vma_list *vma_list;
 	int pages = PAGE_ALIGN(buffer->size) / PAGE_SIZE;
 	int i;

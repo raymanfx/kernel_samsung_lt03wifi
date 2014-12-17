@@ -77,9 +77,6 @@ static struct page *alloc_buffer_page(struct ion_system_heap *heap,
 		page = ion_heap_alloc_pages(buffer, gfp_flags, order);
 		if (!page)
 			return 0;
-		if (split_pages)
-			__dma_page_cpu_to_dev(page, 0, PAGE_SIZE << order,
-					      DMA_BIDIRECTIONAL);
 	}
 	if (!page)
 		return 0;

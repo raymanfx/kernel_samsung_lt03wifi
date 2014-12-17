@@ -744,9 +744,12 @@ struct input_keymap_entry {
 #else
 
 #define KEY_ALS_TOGGLE		0x230	/* Ambient light sensor */
+#ifdef CONFIG_FAST_BOOT
+#define KEY_FAKE_PWR		0x240 /* Fake Power off flag*/
+#endif
 
-#define KEY_BUTTONCONFIG		0x240	/* AL Button Configuration */
 #endif /* BADHAX END */
+#define KEY_BUTTONCONFIG		0x240	/* AL Button Configuration */
 #define KEY_TASKMANAGER		0x241	/* AL Task/Project Manager */
 #define KEY_JOURNAL		0x242	/* AL Log/Journal/Timecard */
 #define KEY_CONTROLPANEL		0x243	/* AL Control Panel */

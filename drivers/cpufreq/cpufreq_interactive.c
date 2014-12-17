@@ -1,4 +1,4 @@
-F/*
+/*
  * drivers/cpufreq/cpufreq_interactive.c
  *
  * Copyright (C) 2010 Google, Inc.
@@ -635,6 +635,7 @@ static void cpufreq_interactive_timer(unsigned long data)
 					   &index)) {
 		spin_unlock_irqrestore(&pcpu->target_freq_lock, flags);
 		goto rearm;
+	}
 
 	new_freq = pcpu->freq_table[index].frequency;
 
@@ -955,28 +956,6 @@ static ssize_t show_target_loads(
 
 	spin_lock_irqsave(&target_loads_lock, flags);
 
-	for (i = 0; i < ntarget_loads; i++)
-		ret += sprintf(buf + ret, "%u%s", target_loads[i],
-			       i & 0x1 ? ":" : " ");
-
-	sprintf(buf + ret - 1, "\n");
-	spin_unlock_irqrestore(&target_loads_lock, flags);
-	return ret;
-}
-
-static ssize_t store_target_loads(
-	struct kobject *kobj, struct attribute *attr, const char *buf,
-	size_t count)
-{
-	int ntokens;
-	unsigned int *new_target_loads = NULL;
-	unsigned long flags;
-
-	new_target_loads = get_tokenized_data(buf, &ntokens);
-	if (IS_ERR(new_target_loads))
-		return PTR_RET(new_target_loads);
-
-	spin_lock_irqsave(&target_loads_lock, flags);
 #ifdef CONFIG_MODE_AUTO_CHANGE
 	for (i = 0; i < ntarget_loads_set[param_index]; i++)
 		ret += sprintf(buf + ret, "%u%s", target_loads_set[param_index][i],
