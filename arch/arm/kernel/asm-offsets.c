@@ -25,6 +25,14 @@
 #include <asm/bL_switcher.h>
 #include <linux/kbuild.h>
 
+/* This is a complete guess. */
+#ifndef __CACHE_WRITEBACK_ORDER
+#define __CACHE_WRITEBACK_ORDER	6
+#endif
+#ifndef __CACHE_WRITEBACK_GRANULE
+#define __CACHE_WRITEBACK_GRANULE (1 << __CACHE_WRITEBACK_ORDER)
+#endif
+
 /*
  * Make sure that the compiler and target are compatible.
  */
