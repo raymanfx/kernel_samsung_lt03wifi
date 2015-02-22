@@ -37,7 +37,8 @@ void mcpm_set_early_poke(unsigned cpu, unsigned cluster,
 	unsigned long *poke = &mcpm_entry_early_pokes[cluster][cpu][0];
 	poke[0] = poke_phys_addr;
 	poke[1] = poke_val;
-	__sync_cache_range_w(poke, 2 * sizeof(*poke));
+	__cpuc_flush_dcache_area((void *)poke, 8);
+	outer_clean_range(__pa(poke), __pa(poke + 2));
 }
 
 static const struct mcpm_platform_ops *platform_ops;
