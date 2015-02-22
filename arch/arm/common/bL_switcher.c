@@ -485,8 +485,8 @@ int __init bL_switcher_init(const struct bL_power_ops *ops)
 
 	pr_info("big.LITTLE switcher initializing\n");
 
-	if (!mcpm_is_available())
-		return -ENODEV;
+	//if (!mcpm_is_available())
+	//	return -ENODEV;
 
 	ret = bL_cluster_sync_init(ops);
 	if (ret)
