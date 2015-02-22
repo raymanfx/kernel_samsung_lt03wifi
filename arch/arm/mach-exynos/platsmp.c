@@ -145,8 +145,8 @@ static int exynos_power_up_cpu(unsigned int cpu)
 	if (!(val & EXYNOS_CORE_LOCAL_PWR_EN)) {
 		__raw_writel(EXYNOS_CORE_LOCAL_PWR_EN, power_base);
 
-		/* wait max 10 ms until cpu is on */
-		timeout = 10;
+		/* wait max 20 ms until cpu is on */
+		timeout = 20;
 		while (timeout) {
 			val = __raw_readl(power_base + 0x4);
 
